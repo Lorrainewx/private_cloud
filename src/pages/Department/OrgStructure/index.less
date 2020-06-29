@@ -1,0 +1,95 @@
+@import '~@/utils/utils.less';
+
+.siteTreeSearchValue {
+    font-weight: bold;
+}
+
+.form {
+    width: 90%;
+    margin: 0 auto;
+}
+
+.itemP {
+    padding: 5px 10px;
+    display: inline-block;
+    margin-right: 5px;
+    background: #eeeeee;
+}
+
+.formItem {
+    background: #eeeeee;
+    padding: 10px;
+    margin-bottom: 20px;
+    position: relative;
+    .delete {
+        position: absolute;
+        right: -14px;
+        top: -14px;
+        color: #888888;
+        font-size: 12px;
+        padding: 10px;
+    }
+    :global {
+        .ant-form-item {
+            margin-bottom: 10px;
+        }
+        .ant-form-item:last-child {
+            margin-bottom: 0;
+        }
+        .ant-form-item-control-input {
+            max-width: 283px;
+        }
+    }
+}
+
+.formlabel {
+    :global {
+        .ant-form-item-label {
+            width: 70px;
+        }
+    }
+}
+
+.accountInfo {
+    margin: 0 0 20px;
+}
+
+.btns {
+    text-align: right;
+}
+
+.searchForm {
+    margin-top: 0;
+}
+
+.dmodal {
+    :global {
+        .ant-modal-header,
+        .ant-modal-footer {
+            border: none;
+        }
+    }
+}
+
+.nameitem {
+    padding: 5px 10px;
+    border-radius: 5px;
+    padding-right: 25px;
+    background: #eeeeee;
+}
+.close {
+    position: absolute;
+    cursor: pointer;
+    right: -4px;
+    top: 50%;
+    margin-top: -17px;
+    padding: 10px;
+}
+
+.editForm {
+    margin-left: 90px;
+    .btns {
+        margin-right: 125px;
+    }
+}
+

@@ -1,0 +1,18 @@
+@import '~@/utils/utils.less';
+
+.nameitem {
+    cursor: pointer;
+    :global {
+        .anticon-close-circle {
+            display: none;
+        }
+    }
+}
+.nameitem:hover {    
+    :global {
+        .anticon-close-circle {
+            display: block;
+        }
+    }
+}
+

@@ -1,0 +1,123 @@
+// mixins for clearfix
+// ------------------------
+.clearfix() {
+  zoom: 1;
+  &::before,
+  &::after {
+    display: table;
+    content: ' ';
+  }
+  &::after {
+    clear: both;
+    height: 0;
+    font-size: 0;
+    visibility: hidden;
+  }
+}
+
+
+// defineColor
+@loginBgCol: #0099FF;
+@deleteColor: #ff0000;
+@normalColor: #999999;
+@dangerColor: #FFD279;
+@successColor: #74CE42;
+
+// state
+.delete {
+    color: @deleteColor;
+}
+
+.trash {
+  color: @dangerColor;
+}
+
+.danger {
+  color: @dangerColor;
+}
+
+.normal {
+    color: @normalColor;
+}
+
+.success {
+  color: @successColor;
+}
+
+// files icon
+.fileNameIcon {
+  width: 40px;
+  height: 30px;
+  overflow: hidden;
+  background-image: url('~@/assets/weapp.svg');
+  background-size: 400px 680px; 
+  background-repeat: no-repeat;
+  float: left;
+  margin-right: 5px;
+}
+
+.fileName {
+  float: left;
+  line-height: 30px;
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+//form
+.searchForm {
+  width: 100%;
+  margin: 30px 0 20px;
+  :global {
+      .ant-row {
+          width: 100%;
+      }
+      .ant-form-item {
+        margin-bottom: 10px;
+        .ant-select,
+        .ant-cascader-picker {
+          width: 100% !important;
+        }
+      }
+  }
+}
+
+.nameitem {
+  margin-bottom: 8px;
+  line-height: 1.4;
+  word-break: break-all;
+  position: relative;
+}
+
+:global {
+  .ant-tree-select-dropdown {
+    width: 250px !important;
+  }
+  .ant-tree-node-content-wrapper-normal {
+    word-break: break-all;
+  }
+  .ant-tabs .ant-tabs-right-content,
+  .ant-tabs-left-content {
+    overflow-y: auto !important;
+    height: 65vh;
+  }
+  .ant-tabs {
+    position: relative;
+  }
+}
+
+:global {
+  .ant-modal-content {
+    .ant-tree-list {
+      max-height: 600px;
+      overflow-y: auto;
+    }
+  }
+  .ant-picker-range {
+    width: 100%;
+  }
+  .ant-form-item-label {
+    min-width: 70px;
+  }
+}

@@ -1,0 +1,80 @@
+@import '~@/utils/utils.less';
+
+.btns {
+    margin: 30px 0 20px;
+}
+.title {
+    font-size: 17px;
+    text-align: center;
+    display: block;
+    // padding: 10px;
+        line-height: 50px;
+    border-bottom: 1px solid #eeeeee;
+    .name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+.titleInput {
+    height: 50px;
+    line-height: 50px;
+}
+.desc {
+    display: block;
+    text-align: center;
+    line-height: 1.5;
+    padding: 10px;
+    height: 42px;
+    border-bottom: 1px solid #eeeeee;
+}
+.lastDesc {
+    border: none;
+}
+
+.item {
+    margin-bottom: 10px;
+    > span {
+        display: inline-block;
+        width: 100px;
+    }
+}
+.form {
+    :global {
+        .ant-form-item-label {
+            width: 250px;
+            text-align: left;
+        }
+    }
+}
+
+.role {
+    padding-left: 16px;
+    display: block;
+    width: 100%;
+    :global {
+        .ant-form-item-label {
+            width: 60px;
+        }
+        .ant-form-item-control {
+            width: 185px;
+            flex: none;
+        }
+    }
+}
+
+.btns {
+    width: 100%;
+    text-align: right;
+}
+.actions {
+    margin: 30px 0 20px;
+}
+
+.opes {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    border: 1px solid #eeeeee;
+    background: #ffffff;
+    line-height: 28px;
+}
