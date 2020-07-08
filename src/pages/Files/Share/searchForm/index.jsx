@@ -31,6 +31,8 @@ class SearchFormShare extends React.Component {
             md: 24,
         }
 
+        const { canReset } = this.props;
+
         return (
             <Form
                 className={styles.searchForm}
@@ -43,7 +45,7 @@ class SearchFormShare extends React.Component {
                     <Col span={20}>
                         <Row gutter={16}>
                             <Col {...layoutCol}>
-                                <Form.Item label="文件名：" name="queryString" >
+                                <Form.Item label="搜索内容：" name="queryString" >
                                     <Input placeholder="请输入文件名/创建人" autoComplete="off" />
                                 </Form.Item>
                             </Col>
@@ -59,7 +61,7 @@ class SearchFormShare extends React.Component {
                     </Col>
                     <div style={{ position: 'absolute', right: '30px' }}>
                         <Button type="primary" htmlType="submit" style={{ marginRight: '10px' }}>查询</Button>
-                        <Button type="primary" onClick={this.onReset} ghost>重置</Button>
+                        <Button type="primary" onClick={this.onReset} ghost disabled={!canReset}>重置</Button>
                     </div>
                 </Row>
             </Form>

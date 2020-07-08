@@ -10,7 +10,7 @@ import { omit } from 'lodash';
 import FileTypeIconMap from '@/utils/files/filesIconMap';
 import YZFile from "@/utils/files/fileInfo";
 import NetHandler from '@/utils/pomelo/netHandler';
-import { formatterForTreeData, getFileId } from '@/utils/cloud';
+import { formatterForTreeData, getFileId, sortByTime } from '@/utils/cloud';
 
 import styles from './index.less';
 
@@ -57,6 +57,7 @@ class DepartmentFiles extends React.Component {
       pathList: [], //路径list
       dpId: undefined,  //当前部门ID
       sLoading: false,  //搜索loading
+      canReset: false,
     };
   }
 
@@ -292,6 +293,7 @@ class DepartmentFiles extends React.Component {
       files: {},
       searchStatus: false,
       listDirParams: { pageSize: 10, page: 0, departmentId: dpId }, // 归零
+      canReset: false,
     }, () => {
       this.listDirByDepartmentId();
     })
@@ -301,7 +303,7 @@ class DepartmentFiles extends React.Component {
     let { dpId } = this.state;
     let { status, createTime, queryString } = values;
     queryString = queryString ? queryString.trim() : "";
-    status = status ? [status] : [0, 1, 2];
+    status = status || status == 0 ? [status] : [0, 1, 2];
 
     let startTime = null,
       endTime = null;
@@ -314,14 +316,14 @@ class DepartmentFiles extends React.Component {
         endTime = endTime.split(" ")[0];
     }
 
-    if (queryString == "" && startTime == null & endTime == null) {
+    if (queryString == "" && startTime == null && endTime == null && !status) {
       message.error('请选择筛选条件');
       return;
     }
 
     let options = Object.assign({}, this.state.options, { status, startTime, endTime });
     let paramsforSearch = Object.assign({}, this.state.paramsforSearch, { queryString, departmentId: dpId });
-    this.setState({ options, paramsforSearch, searchStatus: true, sLoading: true, pathList: [] }, () => {
+    this.setState({ options, paramsforSearch, searchStatus: true, sLoading: true, pathList: [], canReset: true, }, () => {
       localStorage.removeItem('navigateInfoD');
       this.querySearchFiles();
     })
@@ -405,7 +407,7 @@ class DepartmentFiles extends React.Component {
 
   columns = [
     {
-      title: '文档名',
+      title: '文件名',
       dataIndex: 'fileName',
       key: 'fileName',
       align: 'left',
@@ -592,7 +594,7 @@ class DepartmentFiles extends React.Component {
   }
 
   render() {
-    const { selectedRowKeys, defaultExpandedKeys, loading, files, paramsforFiles, listDirParams, pathList, dpId, searchStatus, searchFiles, sLoading, paramsforSearch } = this.state;
+    const { selectedRowKeys, defaultExpandedKeys, loading, files, paramsforFiles, listDirParams, pathList, dpId, searchStatus, searchFiles, sLoading, paramsforSearch, canReset } = this.state;
 
     let {
       enterprise: { departments },
@@ -609,6 +611,14 @@ class DepartmentFiles extends React.Component {
     const hasChoose = selectedRowKeys.length > 0;
     
     let fileId = getFileId(search, 'fileId');
+    
+    // 文件列表
+    let fileInfos = files && files.resultSet && files.resultSet.fileInfos || [];
+    fileInfos = sortByTime(fileInfos);
+
+    // 筛选文件列表
+    let searchArr = searchFiles && searchFiles.fileArr || [];
+    searchArr = sortByTime(searchArr);
 
     return (
       <PageHeaderWrapper title={false}>
@@ -646,6 +656,7 @@ class DepartmentFiles extends React.Component {
             }
             <SearchFormDepartment
               defaultExpandedKeys={defaultExpandedKeys}
+              canReset={canReset}
               treeData={formatterForTreeData(departments)}
               handleSubmit={this.handleSubmit}
               handleReset={this.handleReset}
@@ -655,7 +666,7 @@ class DepartmentFiles extends React.Component {
               <>
                 <Table
                   columns={this.columns}
-                  dataSource={searchFiles && searchFiles.fileArr}
+                  dataSource={searchArr}
                   scroll={{ x: 1400 }}
                   rowSelection={rowSelection}
                   loading={sLoading}
@@ -687,7 +698,7 @@ class DepartmentFiles extends React.Component {
                 <Table
                   rowSelection={rowSelection}
                   columns={this.columns}
-                  dataSource={files && files.resultSet && files.resultSet.fileInfos}
+                  dataSource={fileInfos}
                   scroll={{ x: 1400 }}
                   pagination={{
                     size: 'small',

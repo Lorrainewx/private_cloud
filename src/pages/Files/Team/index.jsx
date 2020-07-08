@@ -6,7 +6,7 @@ import { connect } from 'dva';
 import { omit } from 'lodash';
 import SearchFormTeam from './searchForm';
 import { timestampToTime, unitConversion, generateUuid, getCookie, Base64_decode } from '@/utils/utils';
-import { getFileId } from '@/utils/cloud';
+import { getFileId, sortByTime } from '@/utils/cloud';
 import FileTypeIconMap from '@/utils/files/filesIconMap';
 import YZFile from '@/utils/files/fileInfo';
 import NetHandler from '@/utils/pomelo/netHandler';
@@ -55,6 +55,7 @@ class TeamFiles extends React.Component {
       previewUrl: null, // 预览参数
       navigateHidden: true,
       pathList: [], //路径list
+      canReset: false,  // 是否可重置
     }
   }
 
@@ -218,7 +219,7 @@ class TeamFiles extends React.Component {
     let params = {
       fid: file.fileId
     }
-    let res = await NetHandler.cancelShare({ ...params });
+    let res = await NetHandler.closeLinkShare({ ...params });
     if (this.noresult(res)) return;
     message.success('关闭成功');
     this.loadFileList();
@@ -255,7 +256,7 @@ class TeamFiles extends React.Component {
     let { currentPacketId } = this.state;
     let { status, createTime, queryString } = values;
     queryString = queryString ? queryString.trim() : "";
-    status = status ? [status] : [0, 1, 2];
+    status = status || status == 0 ? [status] : [0, 1, 2];
 
     let startTime = null,
       endTime = null;
@@ -268,14 +269,14 @@ class TeamFiles extends React.Component {
         endTime = endTime.split(" ")[0];
     }
 
-    if (queryString == "" && startTime == null & endTime == null) {
+    if (queryString == "" && startTime == null && endTime == null && !status) {
       message.error('请选择筛选条件');
       return;
     }
 
     let options = Object.assign({}, this.state.options, { status, startTime, endTime });
     let paramsforSearch = Object.assign({}, this.state.paramsforSearch, { queryString, parentId: currentPacketId });
-    this.setState({ options, paramsforSearch, searchStatus: true, loading: true, pathList: [] }, () => {
+    this.setState({ options, paramsforSearch, searchStatus: true, loading: true, pathList: [], canReset: true }, () => {
       localStorage.removeItem('navigateInfo');
       this.querySearchFiles();
     })
@@ -292,6 +293,7 @@ class TeamFiles extends React.Component {
       pLoading: true,
       loading: true,
       paramsforFiles,
+      canReset: false,
     }, () => {
       this.queryPacketFiles();
     });
@@ -305,9 +307,17 @@ class TeamFiles extends React.Component {
       pLoading: true,
       currentPacketId: value,
       searchStatus: false,
+      pathList: [],
     }, () => {
-      // window.location.href = '/files/team';
+      if (window.location.search != "") {
+        let { history } = this.props;
+        history.replace({
+          pathname: '/files/team',
+          search: 'item'
+        });
+      }
       this.queryPacketFiles();  // 群组文件列表
+      localStorage.removeItem('navigateInfo');
     })
   }
 
@@ -318,8 +328,8 @@ class TeamFiles extends React.Component {
     } else {
       paramsforFiles = Object.assign({}, this.state.paramsforFiles, { page: pageNumber - 1 });
     }
-    this.setState({ 
-      paramsforSearch, 
+    this.setState({
+      paramsforSearch,
       loading: true,
       paramsforFiles,
       pLoading: true,
@@ -408,7 +418,7 @@ class TeamFiles extends React.Component {
 
   columns = [
     {
-      title: '文档名',
+      title: '文件名',
       dataIndex: 'fileName',
       key: 'fileName',
       align: 'left',
@@ -444,11 +454,11 @@ class TeamFiles extends React.Component {
             {
               text.length > 10 &&
               <span className={styles.allwords}>
-                <span
+                {/* <span
                   className={styles.fileNameIcon}
                   style={{ backgroundPositionX: iconPos.x, backgroundPositionY: iconPos.y }}
                 >
-                </span>
+                </span> */}
                 {text}
               </span>
             }
@@ -552,7 +562,7 @@ class TeamFiles extends React.Component {
   ]
 
   render() {
-    let { selectedRowKeys, packetFiles, pLoading, searchFiles, loading, paramsforSearch, searchStatus, currentPacketId, previewUrl, previewVisible, pathList, paramsforFiles } = this.state;
+    let { selectedRowKeys, packetFiles, pLoading, searchFiles, loading, paramsforSearch, searchStatus, currentPacketId, previewUrl, previewVisible, pathList, paramsforFiles, canReset } = this.state;
     const rowSelection = {
       selectedRowKeys,
       onChange: this.onSelectChange,
@@ -570,7 +580,13 @@ class TeamFiles extends React.Component {
     packetsResult = packetsResult && packetsResult.data && packetsResult.data.pageInfo || {};
     let packets = packetsResult && packetsResult.list || [];
 
-    console.log(pathList);
+    // 文件列表
+    packetFiles = packetFiles && packetFiles.resultSet && packetFiles.resultSet.fileInfos || [];
+    packetFiles = sortByTime(packetFiles);
+
+    // 筛选文件列表
+    let searchArr = searchFiles && searchFiles.fileArr || [];
+    searchArr = sortByTime(searchArr);
 
     return (
       <PageHeaderWrapper title={false}>
@@ -596,6 +612,7 @@ class TeamFiles extends React.Component {
         <SearchFormTeam
           defaultValue={currentPacketId}
           packets={packets}
+          canReset={canReset}
           handleSubmit={this.handleSubmit}
           handleReset={this.handleReset}
           handleSelect={this.handleSelect}
@@ -605,7 +622,7 @@ class TeamFiles extends React.Component {
           <>
             <Table
               columns={this.columns}
-              dataSource={packetFiles && packetFiles.resultSet && packetFiles.resultSet.fileInfos}
+              dataSource={packetFiles}
               scroll={{ x: 1400 }}
               rowSelection={rowSelection}
               loading={pLoading}
@@ -636,7 +653,7 @@ class TeamFiles extends React.Component {
           <>
             <Table
               columns={this.columns}
-              dataSource={searchFiles && searchFiles.fileArr}
+              dataSource={searchArr}
               scroll={{ x: 1400 }}
               rowSelection={rowSelection}
               loading={loading}

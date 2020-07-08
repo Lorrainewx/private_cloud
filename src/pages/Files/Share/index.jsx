@@ -6,10 +6,11 @@ import { connect } from 'dva';
 import { Link } from 'umi';
 import SearchFormShare from './searchForm';
 import { timestampToTime, unitConversion, generateUuid, getCookie, Base64_decode } from '@/utils/utils';
-import { getFileId } from '@/utils/cloud';
+import { getFileId, sortByTime } from '@/utils/cloud';
 import FileTypeIconMap from '@/utils/files/filesIconMap';
 import YZFile from '@/utils/files/fileInfo';
 import NetHandler from '@/utils/pomelo/netHandler';
+import defaultSettings from '../../../../config/defaultSettings';
 import FILE_TYPE from '@/const/FILE_TYPE';
 import { RESULT_STATUS } from '@/const/STATUS';
 
@@ -21,6 +22,7 @@ const stateObj = {
   '0': '正常',
   '2': '已回收',
 }
+let { devAuth } = defaultSettings;
 
 @connect(({ file, user }) => ({
   file,
@@ -48,6 +50,7 @@ class ShareFiles extends React.Component {
       },
       sLoading: false,  //搜索加载中
       parentId: undefined, //企业folderId
+      canReset: false,
     }
   }
 
@@ -127,9 +130,9 @@ class ShareFiles extends React.Component {
     } else {
       paramsforFiles = Object.assign({}, this.state.paramsforFiles, { page: pageNumber - 1 });
     }
-    this.setState({ 
-      paramsforSearch, 
-      sLoading: true, 
+    this.setState({
+      paramsforSearch,
+      sLoading: true,
       pathList: [],
       paramsforFiles,
       loading: true,
@@ -262,8 +265,10 @@ class ShareFiles extends React.Component {
         let params = {
           fileId: fileInfo.fileId,
           uuid: generateUuid(8, 62),
-          version: 0,
+          version: -1,
           mobile: false,
+          fileName: fileInfo.fileName,
+          method: 3,
         }
         this.getFilePreviewUrl({ ...params });
         break;
@@ -271,19 +276,8 @@ class ShareFiles extends React.Component {
   }
 
   getFilePreviewUrl = (params) => {
-    const { dispatch } = this.props;
-
-    dispatch({
-      type: 'file/preview',
-      payload: params,
-      callback: res => {
-        if (res && res.code == RESULT_STATUS.SUCCESS) {
-
-          let previewUrl = res.data.url;
-          window.open(previewUrl, "_blank");
-        }
-      }
-    })
+    let previewUrl = `${devAuth}/third.html?fileId=${params.fileId}&version=${params.version}&trash=false&method=${params.method}&fileName=${encodeURI(encodeURI(params.fileName))}&uuid=${params.uuid}`;
+    window.open(previewUrl, "_blank");
   }
 
   handleSubmit = values => {
@@ -302,14 +296,14 @@ class ShareFiles extends React.Component {
         endTime = endTime.split(" ")[0];
     }
 
-    if (queryString == "" && startTime == null & endTime == null) {
+    if (queryString == "" && startTime == null && endTime == null) {
       message.error('请选择筛选条件');
       return;
     }
 
     let options = Object.assign({}, this.state.options, { startTime, endTime });
     let paramsforSearch = Object.assign({}, this.state.paramsforSearch, { queryString, parentId });
-    this.setState({ options, paramsforSearch, searchStatus: true, sLoading: true, pathList: [] }, () => {
+    this.setState({ options, paramsforSearch, searchStatus: true, sLoading: true, pathList: [], canReset: true }, () => {
       localStorage.removeItem('navigateInfoA');
       this.querySearchFiles();
     })
@@ -324,6 +318,7 @@ class ShareFiles extends React.Component {
       options: {},
       pathList: [],
       searchStatus: false,
+      canReset: false,
     }, () => {
       this.queryFiles();
       localStorage.removeItem('navigateInfoA');
@@ -354,7 +349,7 @@ class ShareFiles extends React.Component {
 
   columns = [
     {
-      title: '文档名',
+      title: '文件名',
       dataIndex: 'fileName',
       key: 'fileName',
       align: 'left',
@@ -379,21 +374,21 @@ class ShareFiles extends React.Component {
                   {text}
                 </Link>
                 : <span className={styles.fileName}>
-                    <span
-                      className={styles.fileNameIcon}
-                      style={{ backgroundPositionX: iconPos.x, backgroundPositionY: iconPos.y }}
-                    >
-                    </span>
-                    {text}
+                  <span
+                    className={styles.fileNameIcon}
+                    style={{ backgroundPositionX: iconPos.x, backgroundPositionY: iconPos.y }}
+                  >
                   </span>
+                  {text}
+                </span>
             }
             {text.length > 10 &&
               <span className={styles.allwords}>
-                <span
+                {/* <span
                   className={styles.fileNameIcon}
                   style={{ backgroundPositionX: iconPos.x, backgroundPositionY: iconPos.y }}
                 >
-                </span>
+                </span> */}
                 {text}
               </span>
             }
@@ -410,8 +405,8 @@ class ShareFiles extends React.Component {
     },
     {
       title: '文件状态',
-      dataIndex: 'state',
-      key: 'state',
+      dataIndex: 'status',
+      key: 'status',
       align: 'center',
       width: 120,
       render: state => <span className={`${styles[state]}`}>{stateObj[state]}</span>
@@ -499,16 +494,23 @@ class ShareFiles extends React.Component {
     }
   ]
   render() {
-    const { selectedRowKeys, pathList, loading, files, sLoading, searchFiles, searchStatus, paramsforSearch, parentId, paramsforFiles } = this.state;
+    const { selectedRowKeys, pathList, loading, files, sLoading, searchFiles, searchStatus, paramsforSearch, parentId, paramsforFiles, canReset } = this.state;
     const rowSelection = {
       selectedRowKeys,
       onChange: this.onSelectChange,
     };
 
     const hasChoose = selectedRowKeys.length > 0;
+    // 文件列表
+    let filesList = files && files.resultSet && files.resultSet.fileInfos || [];
+    filesList = sortByTime(filesList);
+
+    // 筛选文件列表
+    let searchArr = searchFiles && searchFiles.fileArr || [];
+    searchArr = sortByTime(searchArr);
     return (
       <PageHeaderWrapper title={false}>
-        <Typography.Title level={4} style={{ fontWeight: 'normal' }}>群企业共享文档管理</Typography.Title>
+        <Typography.Title level={4} style={{ fontWeight: 'normal' }}>企业共享文档管理</Typography.Title>
 
         {
           pathList.length > 0 &&
@@ -532,13 +534,14 @@ class ShareFiles extends React.Component {
         <SearchFormShare
           handleSubmit={this.handleSubmit}
           handleReset={this.handleReset}
+          canReset={canReset}
         />
         {
           !searchStatus &&
           <>
             <Table
               columns={this.columns}
-              dataSource={files && files.resultSet && files.resultSet.fileInfos}
+              dataSource={filesList}
               scroll={{ x: 1300 }}
               rowSelection={rowSelection}
               loading={loading}
@@ -571,7 +574,7 @@ class ShareFiles extends React.Component {
           <>
             <Table
               columns={this.columns}
-              dataSource={searchFiles && searchFiles.fileArr}
+              dataSource={searchArr}
               scroll={{ x: 1400 }}
               rowSelection={rowSelection}
               loading={sLoading}

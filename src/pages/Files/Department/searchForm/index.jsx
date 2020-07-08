@@ -30,7 +30,7 @@ class SearchFormDepartment extends React.Component {
             xl: 12,
             md: 24,
         }
-
+        const { canReset } = this.props;
         return (
             <Form
                 className={styles.searchForm}
@@ -45,8 +45,8 @@ class SearchFormDepartment extends React.Component {
                             <Col {...layoutCol}>
                                 <Form.Item label="文件状态：" name="status">
                                     <Select placeholder="文件状态">
-                                        <Option value={1}>已删除</Option>
                                         <Option value={0}>正常</Option>
+                                        <Option value={1}>已删除</Option>
                                         <Option value={2}>已回收</Option>
                                     </Select>
                                 </Form.Item>
@@ -68,7 +68,7 @@ class SearchFormDepartment extends React.Component {
                     </Col>
                     <div style={{ position: 'absolute', right: '20px' }}>
                         <Button htmlType="submit" type="primary" style={{ marginRight: '10px' }}>查询</Button>
-                        <Button type="primary" ghost onClick={this.resetfields}>重置</Button>
+                        <Button type="primary" ghost onClick={this.resetfields} disabled={!canReset}>重置</Button>
                     </div>
                 </Row>
             </Form>

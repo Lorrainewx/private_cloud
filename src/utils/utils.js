@@ -87,7 +87,7 @@ export const unitConversion = fileSize => {
   const gb = mb * 1024;
   const t = gb * 1024;
   let size = Math.abs(fileSize);
-  let desp = '--';
+  let desp = '0';
   if (size < 1 * kb) {
     size < 0.1 ? '0' : size;
     desp = size + 'B';

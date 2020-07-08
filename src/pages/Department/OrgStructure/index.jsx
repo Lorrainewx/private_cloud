@@ -16,6 +16,7 @@ import { formatterForMembers, formatterForTreeData } from '@/utils/cloud';
 import { isBlankReg, isPhoneStr, isEmailStr, isPwStr, isDpnameStr, isAccountStr } from '@/utils/reg';
 
 import styles from './index.less';
+import enterprise from '@/data/enterprise';
 const { Option } = Select;
 const { TabPane } = Tabs;
 
@@ -64,13 +65,15 @@ class OrgStructure extends React.Component {
       departmentRoles: [],  // 成员所有的角色
       corpRoles: [],  // 企业角色
       dpNamesArray: [], // 部门名称集合
+      totalNumberCurDp: 0, // 当前部门总人数
+      destroyOnClose: false,
     }
   }
 
   componentDidMount() {
     this.queryDepartments();  // 所有部门
     this.queryCorpRoles();  //角色
-    this.queryAdminRoles(); //管理员角色
+    // this.queryAdminRoles(); //管理员角色
   }
 
   queryDepartments = () => { // 组织架构
@@ -85,7 +88,14 @@ class OrgStructure extends React.Component {
         if (res && res.code == RESULT_STATUS.SUCCESS) {
           let departmentLarge = res.data.filter(i => i.parentId == 0 || !i.parentId)[0];
           let parentKey = departmentLarge.id;
+          let {
+            enterprise: { curDepartment },
+          } = this.props;
+          curDepartment = curDepartment && curDepartment.data || {};  // 当前部门信息
+
           isInit && this.getDepartmentDetailInfo(parentKey);
+          isInit && this.getCurrentDpMembersCount(res.data, parentKey);
+          !isInit && this.getCurrentDpMembersCount(res.data, curDepartment.id);
 
           this.setState({
             enterpriseId: parentKey,
@@ -237,7 +247,6 @@ class OrgStructure extends React.Component {
   }
 
   onSelectChange = selectedRowKeys => {
-    console.log('已选择列 ', selectedRowKeys);
     this.setState({ selectedRowKeys });
   };
 
@@ -335,6 +344,7 @@ class OrgStructure extends React.Component {
       callback: res => {
         if (res && res.code === RESULT_STATUS.SUCCESS) {
           message.success('保存成功');
+          this.queryDepartments();
           this.queryMembersList();
         }
       }
@@ -402,13 +412,15 @@ class OrgStructure extends React.Component {
             id: departmentId
           }
         ],
-        account: `${values.account}@${epInfo.domain}.yozocloud.cn`
+        account: `${values.account}`
       },
       callback: res => {
         if (res && res.code == RESULT_STATUS.SUCCESS) {
           message.success('添加成功！');
+          this.setState({ destroyOnClose: true });
           this.queryMembersList({ departmentId });
           this.queryCorpMemNum(departmentId);
+          this.queryDepartments();
         }
       }
     })
@@ -419,19 +431,31 @@ class OrgStructure extends React.Component {
     let { addMembersListForId, addMembersListnoGpForId } = this.state;
     let { curDepartment } = this.props.enterprise;
     curDepartment = curDepartment && curDepartment.data;
+    
     if (group) { // 添加分组成员
+      if (addMembersListForId.length == 0) {
+        message.error('未选择成员');
+        return;
+      }
+
       addMembersListForId = addMembersListForId.filter(item => this.isMember(item));
       let newData = addMembersListForId.map(i => i.split("member")[1]);
       this.joinDepartment({ departmentId: curDepartment.id, memberId: String(newData) }, res => {
         message.success('添加成功');
+        this.setState({ destroyOnClose: true });
         this.queryMembersList({ departmentId: curDepartment.id });
         this.queryCorpMemNum(curDepartment.id);
       })
     } else {
+      if (addMembersListnoGpForId.length == 0) {
+        message.error('未选择成员');
+        return;
+      }
       addMembersListnoGpForId = addMembersListnoGpForId.filter(item => this.isMember(item));
       let newData = addMembersListnoGpForId.map(i => i.split("member")[1]);
       this.joinDepartment({ departmentId: curDepartment.id, memberId: String(newData) }, res => {
         message.success('添加成功');
+        this.setState({ destroyOnClose: true });
         this.queryMembersList({ departmentId: curDepartment.id });
         this.queryCorpMemNum(curDepartment.id);
       });
@@ -457,13 +481,11 @@ class OrgStructure extends React.Component {
   deleteMembers = () => {
     const { selectedRowKeys } = this.state;
     this.setState({ deleteVisible: true });
-    console.log('将要批量删除操作的成员ID：', selectedRowKeys);
   }
 
   deleteMembersOK = () => {
     // 提交删除请求
     const { selectedRowKeys } = this.state;
-    console.log('确认删除', selectedRowKeys);
     this.deleteUserAccount(selectedRowKeys);
     this.closeModal('deleteVisible');
   }
@@ -481,6 +503,8 @@ class OrgStructure extends React.Component {
             message.success('删除成功');
             this.queryMembersList();
             this.setState({ selectedRowKeys: [], operation: 0 });
+          } else {
+            message.error('删除失败');
           }
         }
       }
@@ -516,10 +540,18 @@ class OrgStructure extends React.Component {
   treeItemClick = (departmentId) => {
     let params = Object.assign({}, this.state.params, { pageNum: 1, name: '', departmentId });
     params = omit(params, ['roleId', 'frozen']); // 切换部门， 一切归零
+
+    let {
+      enterprise: { departments },
+    } = this.props;
+    departments = departments && departments.data || [];  // 所有部门
+    this.getCurrentDpMembersCount(departments, departmentId);
+
     this.setState({
       params,
       reset: true,
-      isInit: false
+      isInit: false,
+      selectedRowKeys: [],
     }, () => {
       this.getDepartmentDetailInfo(departmentId);
     });
@@ -663,7 +695,7 @@ class OrgStructure extends React.Component {
   }
 
   selectMembers = (selectedKeys, info) => {
-    console.log('selected', selectedKeys, info);
+
   }
 
   // 未分组成员
@@ -907,7 +939,6 @@ class OrgStructure extends React.Component {
   }
   //选择角色
   selectCorpRoles = value => {
-    console.log(value, '选择的corpID');
     let corpRoles = [{ id: value }];
     this.setState({ corpRoles });
   }
@@ -1145,6 +1176,7 @@ class OrgStructure extends React.Component {
   renderAddMemberModal = (membersTree, membersTreeOutGroup) => {
     const {
       addMVisible,
+      destroyOnClose,
       defaultExpandedKeys,
       addmemberList,
       addMembersListForId,
@@ -1158,9 +1190,9 @@ class OrgStructure extends React.Component {
       <Modal
         title="新增成员"
         visible={addMVisible}
-        destroyOnClose={true}
         width="650px"
         onCancel={() => this.closeModal('addMVisible')}
+        destroyOnClose={destroyOnClose}
         footer={null}
       >
         <Tabs defaultActiveKey="1" type="card" onChange={this.onTabchange}>
@@ -1178,7 +1210,7 @@ class OrgStructure extends React.Component {
                   { validator: async (_, value) => await this.validateAccount(_, value) }
                 ]}
               >
-                <Input addonAfter={`@${epInfo.domain}.yozocloud.cn`} placeholder="登录账号" autoComplete="off" maxLength={20} />
+                <Input placeholder="登录账号" autoComplete="off" maxLength={20} />
               </Form.Item>
               <Form.Item
                 label="初始密码："
@@ -1188,7 +1220,7 @@ class OrgStructure extends React.Component {
                 ]}>
                 <Input.Password
                   placeholder="初始密码"
-                  autoComplete="off"
+                  autoComplete="new-password"
                   minLength={6}
                   maxLength={20}
                 />
@@ -1359,6 +1391,18 @@ class OrgStructure extends React.Component {
     )
   }
 
+  getCurrentDpMembersCount = (departments, id) => {
+    departments.map(item => {
+      if (id && item.id == id) {
+        this.setState({ totalNumberCurDp: item.membersCount });
+      } else {
+        if (item.children) {
+          this.getCurrentDpMembersCount(item.children, id);
+        }
+      }
+    })
+  }
+
   render() {
     const {
       selectedRowKeys,
@@ -1372,6 +1416,7 @@ class OrgStructure extends React.Component {
       params,
       reset,
       currentUserInfo,
+      totalNumberCurDp,
     } = this.state;
 
     let {
@@ -1385,7 +1430,7 @@ class OrgStructure extends React.Component {
     dpMembers = dpMembers && dpMembers.data || [];
     curDepartment = curDepartment && curDepartment.data || {};  // 当前部门信息
     let corpRolesList = corpRoles && corpRoles.data || [];  // 角色列表
-    let totalNumber = membersNumResult && membersNumResult.data && membersNumResult.data.totalUniq; // 总人数
+    // let totalNumber = membersNumResult && membersNumResult.data && membersNumResult.data.totalUniq; // 总人数
     let curMembersData = JSON.stringify(membersResult) != "{}" && membersResult.data;
     adminRoles = adminRoles && adminRoles.data || [];
 
@@ -1413,6 +1458,8 @@ class OrgStructure extends React.Component {
       padding: 0
     }
 
+    let disabled = enterpriseId == curDepartment.id;
+
     return (
       <PageHeaderWrapper title={false}>
         <Typography.Title level={4} style={{ fontWeight: 'normal' }}>组织架构</Typography.Title>
@@ -1430,9 +1477,9 @@ class OrgStructure extends React.Component {
           </Col>
           <Col span={18} style={{ border: '1px solid #eeeeeee' }}>
             <div className={styles.title} style={{ marginBottom: '15px' }}>
-              <span>{curDepartment.name}({totalNumber}人)</span>
+              <span>{curDepartment.name}({totalNumberCurDp}人)</span>
               <div className={styles.actions} style={{ display: 'inline', marginLeft: '10px' }}>
-                <Button onClick={this.editDName} type="link" style={{ marginRight: '10px' }} disabled={id == enterpriseId}>修改名称</Button>/
+                <Button onClick={this.editDName} type="link" style={{ marginRight: '10px' }} disabled={disabled}>修改名称</Button>/
                 <Button onClick={() => this.addDepartment(true)} type="link" style={{ marginRight: '10px' }}>添加子部门</Button>/
                 <Popconfirm
                   title={deleteDepartmentTitle}
@@ -1440,9 +1487,9 @@ class OrgStructure extends React.Component {
                   cancelText="取消"
                   onConfirm={() => this.deleteDepartment(curDepartment)}
                   onCancel={() => null}
-                  disabled={id == enterpriseId}
+                  disabled={disabled}
                 >
-                  <Button type="link" danger disabled={id == enterpriseId} onClick={() => this.departmentCanDelete(curDepartment)}>删除</Button>
+                  <Button type="link" danger disabled={disabled} onClick={() => this.departmentCanDelete(curDepartment)}>删除</Button>
                 </Popconfirm>
               </div>
             </div>

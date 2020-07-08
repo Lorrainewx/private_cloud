@@ -123,3 +123,16 @@ export const getFileId = (search, type) => {
         }
     }
 }
+
+
+// 文件按时间倒序排列
+export const sortByTime = (fileInfoList) => {    
+    let newfileInfoList = fileInfoList.sort((a, b) => {
+        let bTime = b.mtime ? b.mtime : b.ctime;
+        bTime = new Date(bTime).getTime();
+        let aTime = a.mtime ? a.mtime : a.ctime;
+        aTime = new Date(aTime).getTime();
+        return bTime - aTime;
+    });
+    return newfileInfoList;
+}
