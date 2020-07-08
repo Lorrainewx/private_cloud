@@ -1,3 +1,5 @@
+import FILE_TYPE from '@/const/FILE_TYPE';
+
 // 有父子关系的数组转变为树形结构
 export const translatortoTree = (parents, children) => {
     parents.forEach(parent => {
@@ -51,7 +53,7 @@ export const formatterForMembers = (data, inGroup = true) => {
         return {
             parent: parentId,
             id,
-            title: name,
+            title: item.account ? `${name}(${item.account})` : name,
             key,
             value: key,
             children: formatterForMembers(children, inGroup = true),
@@ -125,8 +127,8 @@ export const getFileId = (search, type) => {
 }
 
 
-// 文件按时间倒序排列
-export const sortByTime = (fileInfoList) => {    
+// 文件0按时间和类型倒序排列
+export const sortByTimeAndType = (fileInfoList) => {
     let newfileInfoList = fileInfoList.sort((a, b) => {
         let bTime = b.mtime ? b.mtime : b.ctime;
         bTime = new Date(bTime).getTime();
@@ -134,5 +136,9 @@ export const sortByTime = (fileInfoList) => {
         aTime = new Date(aTime).getTime();
         return bTime - aTime;
     });
-    return newfileInfoList;
+    
+    let folderList = newfileInfoList.filter(v => v.type == FILE_TYPE.FOLDER);
+    let filesList = newfileInfoList.filter(v => v.type != FILE_TYPE.FOLDER);
+    let newFilesList = folderList.concat(filesList);
+    return newFilesList;
 }

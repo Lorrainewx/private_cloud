@@ -9,8 +9,9 @@ import styles from './index.less';
 
 const { Option } = Select;
 
-@connect(({ permission }) => ({
-  permission
+@connect(({ permission, enterprise }) => ({
+  permission,
+  enterprise
 }))
 class Jurisdiction extends React.Component {
   state = {
@@ -35,27 +36,46 @@ class Jurisdiction extends React.Component {
       enterpriseId: '10402',
       name: "",
     },
-    addRole: {} //新增的角色
+    addRole: {}, //新增的角色
+    removeIds: [14, 15, 16, 17, 28, 26, 29],
+    rolesIds: [],
   }
   componentDidMount() {
-    this.queryAllRoleandPermission();
+    this.queryCorpRoles();
+  }
+
+  queryCorpRoles = () => {
+    const { dispatch } = this.props;
+    dispatch({
+      type: 'enterprise/getCorpRoles',
+      callback: res => {
+        if (res && res.code == RESULT_STATUS.SUCCESS) {
+          let roles = res.data || [];  // 角色列表
+          let rolesIds = roles.map(item => String(item.id));
+          this.setState({ rolesIds }, () => {
+            this.queryAllRoleandPermission();
+          });
+        }
+      }
+    })
   }
 
   queryAllRoleandPermission = async () => { // 所有文件权限
+    let { rolesIds } = this.state;
     let res = await NetHandler.getAllDepartmentRolesAndPermission();
     if (this.noresult(res)) return;
     let { filePermissions, managerPermissions, roles } = res;
-
     let id = roles[0].id; // 默认值 角色中的第一个
+    roles = roles.filter(v => rolesIds.includes(v.id));
     this.setState({
       filePermissions,
       filePermissionsArr: filePermissions.map((i, index) => Math.pow(2, index)),
+      managerPermissions,
       roles,
       oldRoleId: id,
       newRoleId: id,
       chooseAlreadyRoleId: id,
       roles_count: roles.length,
-      managerPermissions,
     })
   }
 
@@ -101,12 +121,24 @@ class Jurisdiction extends React.Component {
 
   addNewRolesSubmit = (values) => {
     let { role } = values;
+    role = role.trim();
     const { dispatch } = this.props;
     let { roles, roles_count, chooseAlreadyRoleId, type, role: copyRole } = this.state;
-    // if (chooseAlreadyRoleId && role.name == values.name) {
-    //   message.error('请修改角色名称')
-    //   return false;
-    // }
+    let hasSameName = false;
+    if(role == ''){
+      message.error('角色名不能为空');
+      return;
+    }
+    roles.map((item)=>{
+      if (item.name == role){
+        hasSameName = true;
+        return;
+      }
+    })
+    if(hasSameName) {
+      message.error('该角色已存在，请修改角色名称');
+      return false;
+    }
     let filePermission = 0,
         managerPermission = 0;
     let params = {
@@ -122,14 +154,14 @@ class Jurisdiction extends React.Component {
       payload: params,
       callback: res => {
         if(res && res.code == RESULT_STATUS.SUCCESS) {
-          let addRole = { 
-            ...res.data, 
-            filePermission, 
-            managerPermission, 
+          let addRole = {
+            ...res.data,
+            filePermission,
+            managerPermission,
             editStatus: true,
           };
-          this.setState({ 
-            roles_count: roles_count + 1,  
+          this.setState({
+            roles_count: roles_count + 1,
             roles: roles.concat([addRole]),
           });
         }
@@ -246,16 +278,16 @@ class Jurisdiction extends React.Component {
     let { dispatch } = this.props;
     dispatch({
       type: 'permission/deleteRole',
-      payload: { 
+      payload: {
         id,
       },
       callback: res => {
-        if(res && res.code == RESULT_STATUS.SUCCESS) {
+        if (res && res.code == RESULT_STATUS.SUCCESS) {
           message.success('删除成功');
           this.queryAllRoleandPermission();
-        }        
+        }
       }
-    })    
+    })
   }
 
   changeName = (e, role) => {
@@ -528,11 +560,7 @@ class Jurisdiction extends React.Component {
     }
     return newRole;
   }
-  submitAddRole = (value) => {
-    const { roles } = this.state;
-    console.log(roles, 'submitAddRole roles')
 
-  }
   render() {
     const {
       role,
@@ -545,13 +573,10 @@ class Jurisdiction extends React.Component {
       addRoleVisible,
       replaceVisible,
       type,
-      roleVisible
+      roleVisible,
+      removeIds
     } = this.state;
 
-    // console.log('filePermissions',filePermissions)
-    // console.log('filePermissionsArr',filePermissionsArr)
-    // console.log('role',role)
-    // console.log('roles',roles)
     const radioStyle = {
       display: 'block'
     };
@@ -571,6 +596,8 @@ class Jurisdiction extends React.Component {
       othersColspans = 18,
       othersColspan = 75 / Number(roles_count);
 
+    let filePermissionsN = filePermissions.filter((v, index) => !removeIds.includes(index));
+
     return (
       <PageHeaderWrapper title={false}>
         <Typography.Title level={4} style={{ fontWeight: 'normal' }}>权限配置</Typography.Title>
@@ -582,7 +609,7 @@ class Jurisdiction extends React.Component {
           <Col span={firstColSpan}>
             <span className={styles.title}>权限种类</span>
             {
-              filePermissions.map((item, index) => <span className={styles.desc} key={index}> {item}  </span>)
+              filePermissionsN.map((item, index) => <span className={styles.desc} key={index}> {item}  </span>)
             }
             {/* <span className={`${styles.desc} ${styles.lastDesc}`}>角色数量统计</span> */}
           </Col>
@@ -614,11 +641,11 @@ class Jurisdiction extends React.Component {
                           onClick={() => this.changeDpRolePermission(item)}
                         >确定</Button>
                       }
-                      {item.default != 1 && <DeleteFilled style={{ ...iconStyle }} onClick={() => this.deletePermission(item.id)} />}
+                      {item.default == 0 && <DeleteFilled style={{ ...iconStyle }} onClick={() => this.deletePermission(item.id)} />}
                     </div>
                   </span>
                   {
-                    filePermissions.map((itemf, index) => {
+                    filePermissionsN.map((itemf, index) => {
                       const filePermissionFlag = filePermissionsArr[index] & item.filePermission;
                       // console.log('filePermissionFlag',filePermissionFlag)
                       return (
@@ -652,7 +679,7 @@ class Jurisdiction extends React.Component {
             <Radio value={0} style={{ ...radioStyle }}>建立一个空角色</Radio>
             <Radio value={1} style={{ ...radioStyle }}>
               从已有角色复制
-              <Select style={{ ...selectStyle }} onChange={this.chooseAlreadyRole}>
+              <Select style={{ ...selectStyle }} onChange={this.chooseAlreadyRole} getPopupContainer={(triggerNode)=>{ return triggerNode.parentNode}}>
                 {
                   roles && roles.map(item => <Option value={item.id} key={item.id}>{item.name}</Option>)
                 }
@@ -687,7 +714,7 @@ class Jurisdiction extends React.Component {
                   },
                 ]}
               >
-                <Input placeholder="角色" autoComplete="off" />
+                <Input placeholder="角色" autoComplete="off" maxLength={16} />
               </Form.Item>
             </div>
             <div className={styles.btns}>

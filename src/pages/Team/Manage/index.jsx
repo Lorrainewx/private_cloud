@@ -5,7 +5,7 @@ import { Typography, Table, Popconfirm, Button, Popover, Radio, Modal, message }
 import SearchFormManage from './searchForm';
 import { omit } from 'lodash';
 import { connect } from 'dva';
-import { timestampToTime, timestampToTime2 } from '@/utils/utils';
+import { timestampToTime, timestampToTime2, Trim } from '@/utils/utils';
 
 import styles from './index.less';
 
@@ -67,6 +67,13 @@ class TeamManage extends React.Component {
 
   handlePageChange = (currentPage, pageSize) => {
     let params = Object.assign({}, this.state.params, { pageSize, currentPage });
+    this.setState({ params, selectedRowKeys: [] }, () => {
+      this.getPacketList();
+    })
+  }
+
+  sizeChange = (page, pageSize) => {
+    let params = Object.assign({}, this.state.params, { pageSize, currentPage: 1 });
     this.setState({ params }, () => {
       this.getPacketList();
     })
@@ -74,7 +81,7 @@ class TeamManage extends React.Component {
 
   handleSearch = value => {
     console.log('查询条件是：', value);
-    let params = Object.assign({}, this.state.params, { name: value.trim() });
+    let params = Object.assign({}, this.state.params, { name: Trim(value) });
     this.setState({ params }, () => {
       this.getPacketList();
     })
@@ -142,7 +149,7 @@ class TeamManage extends React.Component {
       type: 'packet/transfer',
       payload: params,
       callback: res => {
-        if (res && res.code == RESULT_STATUS.SUCCESS) {
+        if (res && res.code == RESULT_STATUS.SUCCESS && res.success) {
           message.success('移交成功');
           this.getPacketList();
         }
@@ -172,6 +179,7 @@ class TeamManage extends React.Component {
   }
 
   columns = (page) => {
+    let { pageSize } = this.state.params;
     let columns = [
     {
       title: '序号',
@@ -179,7 +187,7 @@ class TeamManage extends React.Component {
       key: 'index',
       align: 'center',
       width: 100,
-      render: (_, __, i) => (page - 1) * 10 + i + 1
+      render: (_, __, i) => (page - 1) * pageSize + i + 1
     },
     {
       title: '群组名',
@@ -287,6 +295,8 @@ class TeamManage extends React.Component {
             current: Number(packetList && packetList.pageNum),
             // showQuickJumper: true,
             onChange: this.handlePageChange,
+            showSizeChanger: true,
+            onShowSizeChange: this.sizeChange,        
           }}
           loading={loading}
           rowKey="id"

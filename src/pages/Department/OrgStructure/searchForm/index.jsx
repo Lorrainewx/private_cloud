@@ -70,7 +70,7 @@ class SearchFormOrgStructure extends React.Component {
                         <Row gutter={16}>
                             <Col {...layoutCol}>
                                 <Form.Item label="选择角色：" >
-                                    <Select placeholder="角色" onChange={this.chooseRole} value={reset ? undefined : role}>
+                                    <Select placeholder="角色" onChange={this.chooseRole} value={reset ? undefined : role} getPopupContainer={(triggerNode)=>{ return triggerNode.parentNode}}>
                                         {
                                             roles.map(item => {
                                                 return (
@@ -83,14 +83,14 @@ class SearchFormOrgStructure extends React.Component {
                             </Col>
                             <Col {...layoutCol}>
                                 <Form.Item label="状态：" >
-                                    <Select placeholder="状态" onChange={this.chooseAccountState} value={reset ? undefined : accountType}>
+                                    <Select placeholder="状态" onChange={this.chooseAccountState} value={reset ? undefined : accountType} getPopupContainer={(triggerNode)=>{ return triggerNode.parentNode}}>
                                         <Option value="1">禁用</Option>
                                         <Option value="0">正常</Option>
                                     </Select>
                                 </Form.Item>
                             </Col>
                             <Col {...layoutCol}>
-                                <Form.Item label="搜索内容：" name="name">
+                                <Form.Item label="搜索：" name="name">
                                     <Input.Search placeholder="请输入成员姓名/手机号" onSearch={this.onSearch} />
                                 </Form.Item>
                             </Col>

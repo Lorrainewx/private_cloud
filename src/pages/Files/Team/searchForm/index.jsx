@@ -62,6 +62,7 @@ class SearchFormTeam extends React.Component {
                                 showSearch
                                 placeholder="所属群组"
                                 onChange={this.selectPacket}
+                                notFoundContent="企业中无此群组"
                                 // onSearch={this.onSearch}
                                 filterOption={(input, option) =>
                                     option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
@@ -79,15 +80,15 @@ class SearchFormTeam extends React.Component {
                         <Row gutter={16}>
                             <Col {...layoutCol}>
                                 <Form.Item label="文件状态：" name="status">
-                                    <Select placeholder="文件状态" >
+                                    <Select placeholder="文件状态" getPopupContainer={(triggerNode)=>{ return triggerNode.parentNode}}>
                                         <Option value={0}>正常</Option>
                                         <Option value={1}>已删除</Option>
-                                        <Option value={2}>已回收</Option>
+                                        <Option value={2}>彻底删除</Option>
                                     </Select>
                                 </Form.Item>
                             </Col>
                             <Col {...layoutCol}>
-                                <Form.Item label="搜索内容：" name="queryString">
+                                <Form.Item label="搜索：" name="queryString">
                                     <Input placeholder="请输入文件名/创建人姓名" autoComplete="off" />
                                 </Form.Item>
                             </Col>

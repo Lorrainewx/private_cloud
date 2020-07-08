@@ -2,7 +2,7 @@ import React from 'react';
 import ReactEcharts from 'echarts-for-react';
 import echarts from 'echarts';
 
-const Bar = ({ height = '300px', theme = 'dark', yname = '部门文档总数', seriesname = '数量', data = {}, option = {}, start = 54, end = 100 }) => {
+const Bar = ({ height = '300px', theme = 'dark', yname = '部门文档数量', seriesname = '数量', data = {}, option = {}, start = 54, end = 100, padding = 10 }) => {
     const textStyles = {
         dark: { color: '#ffffff' },
         light: { color: '#000000' },
@@ -37,7 +37,7 @@ const Bar = ({ height = '300px', theme = 'dark', yname = '部门文档总数', s
     const defaultOptions = {
         color: ['#0051FF'],
         legend: {
-            data: x
+            data: x,
         },
         tooltip: {
             trigger: 'axis',
@@ -72,6 +72,7 @@ const Bar = ({ height = '300px', theme = 'dark', yname = '部门文档总数', s
                 axisTick: {
                     alignWithLabel: true
                 },
+                show: false,
                 nameTextStyle: {
                     color: color(theme).xAxisText
                 },
@@ -82,7 +83,8 @@ const Bar = ({ height = '300px', theme = 'dark', yname = '部门文档总数', s
                 type: 'value',
                 name: yname,
                 nameTextStyle: {
-                    color: color(theme).yAxisText
+                    color: color(theme).yAxisText,
+                    padding: [0, 0, 0, padding],
                 },
                 axisLabel: {
                     show: true,

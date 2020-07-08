@@ -123,13 +123,33 @@
 
 .logo {
   text-align: center;
-  span {
-    width: 100%;
-    display: inline-block;
+  position: relative;
+  margin-bottom: 60px;
+  .swords {
+    display: block;
     overflow: hidden;
+    width: 168px;
     white-space: nowrap;
     text-overflow: ellipsis;
-    margin-bottom: 12px;
+    margin: 10px auto;
+    cursor: pointer;
+  }
+  .awords {
+    position: absolute;
+    top: 80%;
+    left: 23.5%;
+    cursor: pointer;
+    // text-align: left;
+    display: none;
+    // background: #ffffff;
+  }
+}
+.logo:hover {
+  .awords {
+    // display: block;
+  }
+  .swords {
+    // visibility: hidden;
   }
 }
 

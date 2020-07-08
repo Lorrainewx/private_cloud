@@ -20,10 +20,10 @@ import {
   message
 } from 'antd';
 import SearchFormBulletinsManage from './searchForm';
-import {timestampToTime, timestampToTime2} from '@/utils/utils';
+import {timestampToTime, timestampToTime2, Trim} from '@/utils/utils';
 import styles from './index.less';
 import { connect } from 'dva';
-
+// import bulletinsResult from '@/data/bulletins';
 import {omit} from "lodash";
 import SearchTree from "@/components/SearchTree";
 import defaultSettings from "../../../../config/defaultSettings";
@@ -61,6 +61,7 @@ class BulletinsManage extends React.Component {
       diyVisible: false,
       readVisible: false,
       edit: false,
+      bulletinsResult:{},
       noticeType: 0,
       members: [],
       currentBulletins: {},
@@ -108,7 +109,7 @@ class BulletinsManage extends React.Component {
       type = ty.currentBulletins.status ==0?'notice/noticeEdit':'notice/addWithPublish'
       id = ty.currentBulletins.id;
     }
-    if(!noticeTitle){
+    if(!noticeTitle.trim()){
       message.error(errMessage.title)
       return
     }
@@ -173,7 +174,7 @@ class BulletinsManage extends React.Component {
   handlePageChange = (pageNum, pageSize) => {
     let params = Object.assign({}, this.state.params, { page: pageNum });
     console.log('params',params);
-    this.setState({ params }, () => {
+    this.setState({ params, selectedRowKeys: [] }, () => {
       this.getNoticeList();
     });
   }
@@ -252,16 +253,30 @@ class BulletinsManage extends React.Component {
     let result = String(value).indexOf('member') > -1;
     return result;
   }
+  selectMembers = value=>{
 
-  onChangeforReceivers = value => {
-    const checkedMidKeys = value.filter(item => this.isMember(item));
-    let ids = [];
-    checkedMidKeys.map((item, index) => {
-      ids.push(parseInt(item.split("member")[1]))
-    })
-    this.setState({ members: JSON.stringify(ids) });
+  console.log('selectMembers',value);
   }
+  onChangeforReceivers = value => {
+    let checkedMidKeys = value.filter(item => this.isMember(item));
+    let memberList = [];
+    for (let item of checkedMidKeys) {
+      let mid = item.split('member')[1];
+      memberList.push(mid);
+      this.setState({ members: JSON.stringify(memberList)});
+    }
 
+  }
+  queryMemberInfoItem = (mid, cb) => {
+    const { dispatch } = this.props;
+    dispatch({
+      type: 'corpAccount/fetchMemInfo',
+      payload: { mid },
+      callback: res => {
+        cb && typeof cb == 'function' && cb(res);
+      }
+    })
+  }
   checkMembers = values => {
     console.log(values, '选中的人员ID是：');
   }
@@ -294,12 +309,16 @@ class BulletinsManage extends React.Component {
   }
 
   openReadorUnreadList = (record) => {
+    var isPublish = record.status ? false : true;
+    let data ={
+      isPublish:isPublish,
+      id:String(record.id)
+    }
     const {dispatch} = this.props;
+
     dispatch({
       type:'notice/noticeLookInfo',
-      payload: {
-        id:String(record.id)
-      },
+      payload: data,
       callback:(res)=>{
         console.log('查询公告未确认和确认人数:',res)
       }
@@ -356,14 +375,14 @@ class BulletinsManage extends React.Component {
     })
   }
   handleReset = () => {
-    console.log('aaaaaaaaaaa')
-    let params = omit(this.state.params, ['content', 'status', 'endTime', 'startTime']);
-    this.setState({ params }, () => {
+    let params = Object.assign({}, this.state.params, { pageSize: 10, pageNum: 0 });
+     params = omit(this.state.params, ['searchContent', 'status', 'endTime', 'startTime']);
+    this.setState({ params,reset: true, }, () => {
       this.getNoticeList();
     })
   }
   handleSearch = value => {
-    let params = Object.assign({}, this.state.params, { searchContent: value.trim()});
+    let params = Object.assign({}, this.state.params, { searchContent: Trim(value)});
     this.setState({ params }, () => {
       this.getNoticeList();
     })
@@ -386,13 +405,13 @@ class BulletinsManage extends React.Component {
     },
     {
       title: '发布人',
-      dataIndex: 'creatorId',
-      key: 'creatorId',
+      dataIndex: 'lastModifierName',
+      key: 'lastModifierName',
       align: 'center',
       width: 150,
     },
     {
-      title: '标题公告',
+      title: '公告标题',
       dataIndex: 'noticeTitle',
       key: 'noticeTitle',
       align: 'center',
@@ -454,7 +473,11 @@ class BulletinsManage extends React.Component {
 
   render() {
     const { visible, dVisible,isValue, diyVisible, readVisible, noticeType, members, edit, currentBulletins,errInfo,noticeInfo,selectedRowKeys,xqVisible } = this.state;
+
     const noticeStatus = currentBulletins.status
+    const startTime = timestampToTime(currentBulletins.startTime)
+    const endTime = timestampToTime(currentBulletins.endTime)
+    const defaultTime ={startDate:startTime,endDate:endTime}
     const rowSelection = {
       selectedRowKeys,
       onChange: this.onSelectChange,
@@ -468,23 +491,18 @@ class BulletinsManage extends React.Component {
       loading,
     } = this.props;
     dpMembers =dpMembers && dpMembers.data;
-    console.log('dpMembers',dpMembers, this.formatterForMembers(dpMembers))
+
     const hasChoose = selectedRowKeys.length > 0;
     const {noticeList} = this.props.notice && this.props.notice;
     const { confirmData } = this.props.notice && this.props.notice;
     const userNamesRead = confirmData.userNamesRead && confirmData.userNamesRead
     const userNamesUnRead = confirmData.userNamesUnRead && confirmData.userNamesUnRead
-    console.log(userNamesUnRead,'userNamesUnRead')
-    console.log(userNamesRead,'userNamesRead')
     let dataSource = {};
     const tProps = {
-      value: members,
       placeholder: '选择接收人员',
       treeData: this.formatterForMembers(dpMembers),
       onChange: this.onChangeforReceivers,
       treeCheckable: true,
-      onSelect: this.onSelectforReceivers,
-      // showCheckedStrategy: SHOW_PARENT,
     };
 
 
@@ -508,14 +526,14 @@ class BulletinsManage extends React.Component {
           columns={this.columns(noticeList && Number(noticeList.pageNum) || 1)}
           rowSelection={rowSelection}
           loading={loading}
-          pagination = {{
-            size: 'small',
-            pageSize: noticeList && Number(noticeList.pageSize) || 10,
-            total: noticeList && Number(noticeList.total) || 0,
-            current: noticeList && Number(noticeList.pageNum) || 1,
-            // showQuickJumper: true,
-            onChange: this.handlePageChange,
-          }}
+          // pagination = {{
+          //   size: 'small',
+          //   pageSize: Number(noticeList.pageSize),
+          //   total: Number(noticeList.total),
+          //   current: Number(noticeList.pageNum),
+          //   // showQuickJumper: true,
+          //   onChange: this.handlePageChange,
+          // }}
           rowKey="id"
           scroll={{ x: 1400 }}
         />
@@ -543,10 +561,14 @@ class BulletinsManage extends React.Component {
               <Input name="noticeTitle" disabled={!edit} maxLength={30} />
             </Form.Item>
             <Form.Item label="公告内容：" name="content">
-              <TextArea rows={6} name="content" disabled={!edit} maxLength={500} />
+              <TextArea rows={6} name="content" disabled={!edit} maxLength={800} />
             </Form.Item>
             <Form.Item label="显示时间："  name='publishTime'>
-              <RangePicker name="publishTime" style={{ width: '427px' }} format={'YYYY-MM-DD HH:mm'} disabled={!edit} disabledDate={this.disabledDates} />
+              <RangePicker name="publishTime" style={{ width: '427px' }}
+                              format={'YYYY-MM-DD HH:mm'}
+                              defaultValue={isValue?[moment(startTime, 'YYYY-MM-DD HH:mm'), moment(endTime, 'YYYY-MM-DD HH:mm')]:''}
+                              disabled={!edit} disabledDate={this.disabledDates} />
+
             </Form.Item>
             <Form.Item label="通知成员：" name='members'>
               <Radio.Group onChange={this.changeNoticeType} value={noticeType} disabled={!edit}>
@@ -566,6 +588,7 @@ class BulletinsManage extends React.Component {
           title='请选择公告接收人'
           onOk={this.sendBulletins}
           onCancel={this.cancelSend}
+          destroyOnClose={true}
         >
           <Tabs defaultActiveKey="1" type="card">
             <TabPane tab="企业成员" key="1">
@@ -585,7 +608,7 @@ class BulletinsManage extends React.Component {
             <TabPane tab="未确认" key="3">
               <List
                 itemLayout="horizontal"
-                dataSource={userNamesRead}
+                dataSource={userNamesUnRead}
                 renderItem={item => (
                   <List.Item>
                     <List.Item.Meta
@@ -600,7 +623,7 @@ class BulletinsManage extends React.Component {
             <TabPane tab="已确认" key="4">
               <List
                 itemLayout="horizontal"
-                dataSource={userNamesUnRead}
+                dataSource={userNamesRead}
                 renderItem={item => (
                   <List.Item>
                     <List.Item.Meta
@@ -631,7 +654,7 @@ class BulletinsManage extends React.Component {
             <li><span className={styles.title}>公告标题：</span><span className={styles.content}>{noticeInfo.noticeTitle}</span></li>
             <li><span className={styles.title}>公告内容：</span><span className={styles.content}>{noticeInfo.content}</span></li>
             <li><span className={styles.title}>发布时间：</span><span className={styles.content}>{timestampToTime(noticeInfo.createTime)}</span></li>
-            <li><span className={styles.title}>发布人：</span><span className={styles.content}>{noticeInfo.creatorId}</span></li>
+            <li><span className={styles.title}>发布人：</span><span className={styles.content}>{noticeInfo.lastModifierName}</span></li>
           </ul>
         </Modal>
       </PageHeaderWrapper>

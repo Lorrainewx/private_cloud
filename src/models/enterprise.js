@@ -11,6 +11,7 @@ import {
     getEnterPriseDrive,
     updateVersionLimit,
     getAdminRoles,
+    getEnterpriseDepartmentFileCount,
 } from '@/services/enterprise';
 
 const EpModel = {
@@ -28,6 +29,7 @@ const EpModel = {
         updateDpResult: {},   // 部门更新结果
         membersNumResult: {},  // 部门成员信息
         adminRoles: {},  // 管理员角色
+        epDepartmentFileCount: {},  // 一级部门文档数量
     },
     effects: {
         *fetch({ payload, callback }, { call, put }) {
@@ -149,6 +151,16 @@ const EpModel = {
                 type: 'save',
                 payload: {
                     adminRoles: response
+                }
+            })
+            if (callback && typeof callback == 'function') callback(response);
+        },
+        *getepDmFileCount({ payload, callback }, { call, put }) {
+            const response = yield call(getEnterpriseDepartmentFileCount, payload);
+            yield put({
+                type: 'save',
+                payload: {
+                    epDepartmentFileCount: response
                 }
             })
             if (callback && typeof callback == 'function') callback(response);

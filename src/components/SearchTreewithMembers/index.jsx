@@ -53,7 +53,7 @@ class SearchTreewithMembers extends React.Component {
                         hasOnselect={hasOnselect}
                     />
                 </Col>
-                <Col span={8} style={{ paddingLeft: '20px' }}>
+                <Col span={8} style={{ paddingLeft: '20px', overflowY: 'auto', overflowX: 'hidden', maxHeight: '640px' }}>
                     <Typography.Text style={{ marginBottom: '15px', display: 'block' }}>已选择成员</Typography.Text>
                     {
                         dataSource.map(item => {

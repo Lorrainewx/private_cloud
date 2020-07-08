@@ -5,7 +5,7 @@ import SearchFormBulletins from './searchForm';
 import { connect } from 'dva';
 import { omit } from 'lodash';
 import { RESULT_STATUS } from '@/const/STATUS'
-import { timestampToTime, timestampToTime2 } from '@/utils/utils';
+import { timestampToTime, timestampToTime2, Trim } from '@/utils/utils';
 import styles from './index.less';
 
 const { TextArea } = Input;
@@ -59,12 +59,19 @@ class Bulletins extends React.Component {
 
   handlePageChange = (pageNum, pageSize) => {
     let params = Object.assign({}, this.state.params, { currentPage: pageNum });
-    this.setState({ params }, () => {
+    this.setState({ params, selectedRowKeys: [] }, () => {
       this.queryNotices();
     });
   }
+  
+  sizeChange = (page, pageSize) => {
+    let params = Object.assign({}, this.state.params, { pageSize, currentPage: 1 });
+    this.setState({ params }, () => {
+      this.queryNotices();
+    })
+  }
 
-  deleteBulletins = ids => {
+  deleteBulletins = (ids, index) => {
     // 提交删除 接口
     const { dispatch } = this.props;
     dispatch({
@@ -75,6 +82,19 @@ class Bulletins extends React.Component {
       callback: res => {
         if (res && res.code == RESULT_STATUS.SUCCESS) {
           message.success('删除成功');
+          let { currentPage } = this.state.params;
+          let params = Object.assign({}, this.state.params, { currentPage: currentPage > 1 ? currentPage - 1 : 1  });
+          let length = ids.length;          
+          let { noticesResult } = this.props;
+          let dataSource = noticesResult && noticesResult.data || {};
+          if (index == 0 || length == dataSource.packetPost.length) {  // 当前页的最后一个数据被删除
+            this.setState({ params }, () => {
+              this.queryNotices();
+              this.setState({ selectedRowKeys: [] });
+              return;
+            })
+          }
+
           this.queryNotices();
           this.setState({ selectedRowKeys: [] }); //清除
         }
@@ -83,7 +103,7 @@ class Bulletins extends React.Component {
   }
 
   handleSearch = value => {
-    let params = Object.assign({}, this.state.params, { name: value.trim() });
+    let params = Object.assign({}, this.state.params, { name: Trim(value) });
     this.setState({ params }, () => {
       this.queryNotices();
     })
@@ -122,64 +142,65 @@ class Bulletins extends React.Component {
   }
 
   columns = (page) => {
+    let { pageSize } = this.state.params;
     let columns = [
-    {
-      title: '序号',
-      dataIndex: 'index',
-      key: 'index',
-      align: 'center',
-      width: 100,
-      render: (_, __, i) => (page - 1) * 10 + i + 1
-    },
-    {
-      title: '标题公告',
-      dataIndex: 'title',
-      key: 'title',
-      align: 'center',
-      width: 400,
-      render: (text, record) => <Button type="link" onClick={() => this.openModal(true, record)} className={styles.button}>{text}</Button>
-    },
-    {
-      title: '所属群组',
-      dataIndex: 'packetName',
-      key: 'packetName',
-      align: 'center',
-      width: 200,
-    },
-    {
-      title: '发布人',
-      dataIndex: 'userName',
-      key: 'userName',
-      align: 'center',
-      width: 150,
-    },
-    {
-      title: '创建时间',
-      dataIndex: 'createTime',
-      key: 'createTime',
-      align: 'center',
-      width: 200,
-      render: time => <span>{timestampToTime(time)}</span>
-    },
-    {
-      title: '操作',
-      dataIndex: 'action',
-      key: 'action',
-      align: 'center',
-      render: (_, record) => {
-        return (
-          <Popconfirm
-            title="您确定要删除该公告吗？"
-            onConfirm={() => this.deleteBulletins(record.id)}
-            onCancel={() => null}
-          >
-            <Button type="link" danger >删除</Button>
-          </Popconfirm>
-        )
+      {
+        title: '序号',
+        dataIndex: 'index',
+        key: 'index',
+        align: 'center',
+        width: 100,
+        render: (_, __, i) => (page - 1) * pageSize + i + 1
+      },
+      {
+        title: '公告标题',
+        dataIndex: 'title',
+        key: 'title',
+        align: 'center',
+        width: 400,
+        render: (text, record) => <Button type="link" onClick={() => this.openModal(true, record)} className={styles.button}>{text}</Button>
+      },
+      {
+        title: '所属群组',
+        dataIndex: 'packetName',
+        key: 'packetName',
+        align: 'center',
+        width: 200,
+      },
+      {
+        title: '发布人',
+        dataIndex: 'userName',
+        key: 'userName',
+        align: 'center',
+        width: 150,
+      },
+      {
+        title: '创建时间',
+        dataIndex: 'createTime',
+        key: 'createTime',
+        align: 'center',
+        width: 200,
+        render: time => <span>{timestampToTime(time)}</span>
+      },
+      {
+        title: '操作',
+        dataIndex: 'action',
+        key: 'action',
+        align: 'center',
+        render: (_, record, i) => {
+          return (
+            <Popconfirm
+              title="您确定要删除该公告吗？"
+              onConfirm={() => this.deleteBulletins(record.id, i)}
+              onCancel={() => null}
+            >
+              <Button type="link" danger >删除</Button>
+            </Popconfirm>
+          )
+        }
       }
-    }
-  ]
-  return columns;
+    ]
+    return columns;
   };
 
   render() {
@@ -213,7 +234,9 @@ class Bulletins extends React.Component {
             total: dataSource && Number(dataSource.total),
             current: dataSource && Number(dataSource.currentPage),
             // showQuickJumper: true,
-            onChange: this.handlePageChange,
+            onChange: this.handlePageChange,          
+            showSizeChanger: true,
+            onShowSizeChange: this.sizeChange,  
           }}
           loading={loading}
           rowKey="id"

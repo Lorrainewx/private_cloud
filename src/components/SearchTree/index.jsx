@@ -15,11 +15,13 @@ class SearchTree extends React.Component {
             searchValue: '',
             expandedKeys: [],
             currentId: 0,
+            isEx: false,
         }
     }
 
     onExpand = expandedKeys => {
         this.setState({
+            isEx: true,
             expandedKeys: uniq(expandedKeys),
         });
     };
@@ -103,15 +105,15 @@ class SearchTree extends React.Component {
     }
 
     render() {
-        const { treeData, placeholder, addDepartment, defaultExpandedKeys, showAddDepbtn, checkable, draggable, checkedKeys } = this.props;
-        const { expandedKeys } = this.state;
+        const { treeData, placeholder, addDepartment, showAddDepbtn, checkable, draggable, checkedKeys, defaultExpandedKeys } = this.props;
+        const { expandedKeys, isEx } = this.state;
 
         return (
             <>
                 <Search style={{ marginBottom: 8 }} placeholder={placeholder} onChange={this.handleSearch} />
                 <Tree
                     onExpand={this.onExpand}
-                    expandedKeys={expandedKeys.concat(defaultExpandedKeys)}
+                    expandedKeys={isEx ? expandedKeys : expandedKeys.concat(defaultExpandedKeys)}
                     treeData={this.highLight(treeData)}
                     checkable={!!checkable}
                     checkedKeys={checkedKeys}

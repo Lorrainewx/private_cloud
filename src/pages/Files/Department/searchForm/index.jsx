@@ -44,15 +44,15 @@ class SearchFormDepartment extends React.Component {
                         <Row gutter={16}>
                             <Col {...layoutCol}>
                                 <Form.Item label="文件状态：" name="status">
-                                    <Select placeholder="文件状态">
+                                    <Select placeholder="文件状态" getPopupContainer={(triggerNode)=>{ return triggerNode.parentNode}}>
                                         <Option value={0}>正常</Option>
                                         <Option value={1}>已删除</Option>
-                                        <Option value={2}>已回收</Option>
+                                        <Option value={2}>彻底删除</Option>
                                     </Select>
                                 </Form.Item>
                             </Col>
                             <Col {...layoutCol}>
-                                <Form.Item label="搜索内容：" name="queryString">
+                                <Form.Item label="搜索：" name="queryString">
                                     <Input placeholder="文件名/创建人" autoComplete="off" />
                                 </Form.Item>
                             </Col>

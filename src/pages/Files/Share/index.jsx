@@ -5,8 +5,8 @@ import { LoadingOutlined } from '@ant-design/icons';
 import { connect } from 'dva';
 import { Link } from 'umi';
 import SearchFormShare from './searchForm';
-import { timestampToTime, unitConversion, generateUuid, getCookie, Base64_decode } from '@/utils/utils';
-import { getFileId, sortByTime } from '@/utils/cloud';
+import { timestampToTime, unitConversion, generateUuid, getCookie, Base64_decode, Trim } from '@/utils/utils';
+import { getFileId, sortByTimeAndType } from '@/utils/cloud';
 import FileTypeIconMap from '@/utils/files/filesIconMap';
 import YZFile from '@/utils/files/fileInfo';
 import NetHandler from '@/utils/pomelo/netHandler';
@@ -18,9 +18,9 @@ import styles from './index.less';
 
 import { values } from 'lodash';
 const stateObj = {
-  '1': '已删除',
   '0': '正常',
-  '2': '已回收',
+  '1': '已删除',
+  '2': '彻底删除',
 }
 let { devAuth } = defaultSettings;
 
@@ -39,6 +39,9 @@ class ShareFiles extends React.Component {
         type: FILE_TYPE.ALL,
         page: 0,
         pageSize: 10,
+        options: {
+          status: [0, 1, 2],
+        }
         // did: '8519145728510146',
       },
       searchStatus: false,  //是否为查询状态
@@ -47,6 +50,7 @@ class ShareFiles extends React.Component {
       paramsforSearch: { // 筛选列表参数
         page: 0,
         pageSize: 10,
+        type: FILE_TYPE.FILE,
       },
       sLoading: false,  //搜索加载中
       parentId: undefined, //企业folderId
@@ -68,12 +72,16 @@ class ShareFiles extends React.Component {
 
   deleteFile = async file => {
     let params = {
-      deleteVersionIds: [],
+      // deleteVersionIds: [],
       fidArr: typeof file == 'object' ? file : [file],
     }
     let res = await NetHandler.deleteByIds({ ...params });
     if (this.noresult(res)) return;
     message.success('删除成功');
+    this.setState({
+      selectedRowKeys: []
+    })
+    
     // 请求文件
     let { searchStatus } = this.state;
 
@@ -109,6 +117,9 @@ class ShareFiles extends React.Component {
         if (res && res.code == RESULT_STATUS.SUCCESS && res.success) {
           window.location = res.data;
           message.success('下载成功');
+          this.setState({
+            selectedRowKeys: []
+          })
         }
       }
     })
@@ -117,11 +128,6 @@ class ShareFiles extends React.Component {
   onSelectChange = selectedRowKeys => {
     this.setState({ selectedRowKeys });
   }
-
-  handleSearch = values => {
-    console.log('查询条件是：', values);
-  }
-
 
   handlePageChange = (pageNumber, pageSize) => {  // 页码查询
     let { paramsforSearch, paramsforFiles, searchStatus } = this.state;
@@ -136,11 +142,26 @@ class ShareFiles extends React.Component {
       pathList: [],
       paramsforFiles,
       loading: true,
+      selectedRowKeys: []
     }, () => {
       searchStatus && this.querySearchFiles();
       // localStorage.removeItem('navigateInfoA');
       !searchStatus && this.queryFiles();
     });
+  }
+
+  sizeChange = (page, pageSize) => {
+    let paramsforFiles = Object.assign({}, this.state.paramsforFiles, { pageSize, page: 0 });
+    this.setState({ paramsforFiles, loading: true }, () => {
+      this.queryFiles();
+    })
+  }
+
+  sizeChangeforSearch = (page, pageSize) => {
+    let paramsforSearch = Object.assign({}, this.state.paramsforSearch, { pageSize });
+    this.setState({ paramsforSearch, sLoading: true }, () => {
+      this.querySearchFiles();
+    })
   }
 
   async componentDidMount() {
@@ -276,14 +297,15 @@ class ShareFiles extends React.Component {
   }
 
   getFilePreviewUrl = (params) => {
-    let previewUrl = `${devAuth}/third.html?fileId=${params.fileId}&version=${params.version}&trash=false&method=${params.method}&fileName=${encodeURI(encodeURI(params.fileName))}&uuid=${params.uuid}`;
+    let previewUrl = `/third.html?fileId=${params.fileId}&version=${params.version}&trash=false&method=${params.method}&fileName=${encodeURI(encodeURI(params.fileName))}&uuid=${params.uuid}`;
     window.open(previewUrl, "_blank");
   }
 
   handleSubmit = values => {
     let { parentId } = this.state;
-    let { createTime, queryString } = values;
-    queryString = queryString ? queryString.trim() : "";
+    let { status, createTime, queryString } = values;    
+    queryString = queryString ? Trim(queryString) : "";
+    status = status || status == 0 ? [status] : [0, 1, 2];
 
     let startTime = null,
       endTime = null;
@@ -296,14 +318,14 @@ class ShareFiles extends React.Component {
         endTime = endTime.split(" ")[0];
     }
 
-    if (queryString == "" && startTime == null && endTime == null) {
+    if (queryString == "" && startTime == null && endTime == null && !status) {
       message.error('请选择筛选条件');
       return;
     }
 
-    let options = Object.assign({}, this.state.options, { startTime, endTime });
-    let paramsforSearch = Object.assign({}, this.state.paramsforSearch, { queryString, parentId });
-    this.setState({ options, paramsforSearch, searchStatus: true, sLoading: true, pathList: [], canReset: true }, () => {
+    let options = Object.assign({}, this.state.options, { startTime, endTime, status });
+    let paramsforSearch = Object.assign({}, this.state.paramsforSearch, { queryString, parentId, page: 0 });
+    this.setState({ options, paramsforSearch, searchStatus: true, sLoading: true, pathList: [], canReset: true, selectedRowKeys: [] }, () => {
       localStorage.removeItem('navigateInfoA');
       this.querySearchFiles();
     })
@@ -314,7 +336,7 @@ class ShareFiles extends React.Component {
     let { options, parentId } = this.state;
     this.setState({
       loading: true,
-      paramsforSearch: { page: 0, pageSize: 10, did: parentId, type: FILE_TYPE.ALL },
+      paramsforSearch: { page: 0, pageSize: 10, did: parentId, type: FILE_TYPE.FILE },
       options: {},
       pathList: [],
       searchStatus: false,
@@ -382,16 +404,6 @@ class ShareFiles extends React.Component {
                   {text}
                 </span>
             }
-            {text.length > 10 &&
-              <span className={styles.allwords}>
-                {/* <span
-                  className={styles.fileNameIcon}
-                  style={{ backgroundPositionX: iconPos.x, backgroundPositionY: iconPos.y }}
-                >
-                </span> */}
-                {text}
-              </span>
-            }
           </div>
         )
       }
@@ -432,7 +444,7 @@ class ShareFiles extends React.Component {
       }
     },
     {
-      title: '分享',
+      title: '共享',
       key: 'share',
       align: 'center',
       width: 80,
@@ -440,7 +452,7 @@ class ShareFiles extends React.Component {
         let fileInfo = YZFile(record);
         return (
           <Popconfirm
-            title="确定关闭分享吗？"
+            title="确定关闭共享吗？"
             okText="确定"
             cancelText="取消"
             onConfirm={() => this.closeShare(record)}
@@ -479,16 +491,16 @@ class ShareFiles extends React.Component {
       render: (_, record) => {
         return <>
           <Popconfirm
-            title="确定删除文件吗？"
+            title="文件被删除后不可恢复"
             okText="确定"
             cancelText="取消"
             onConfirm={() => this.deleteFile(record.fileId)}
             onCancel={() => null}
-            disabled={record.state == '1'}
+            disabled={record.status == '2'}
           >
-            <Button type="link" danger disabled={record.state == '1'}>删除</Button>
+            <Button type="link" danger disabled={record.status == '2'}>删除</Button>
           </Popconfirm>
-          <Button onClick={() => this.downloadFile(record.fileId)} type="link" disabled={record.state == 'delete'}>下载</Button>
+          <Button onClick={() => this.downloadFile(record.fileId)} type="link" disabled={record.status == '2'}>下载</Button>
         </>
       }
     }
@@ -498,16 +510,20 @@ class ShareFiles extends React.Component {
     const rowSelection = {
       selectedRowKeys,
       onChange: this.onSelectChange,
+      getCheckboxProps: record => ({
+        disabled: record.status == '2', // Column configuration not to be checked
+        name: record.status,
+      }),
     };
 
     const hasChoose = selectedRowKeys.length > 0;
     // 文件列表
     let filesList = files && files.resultSet && files.resultSet.fileInfos || [];
-    filesList = sortByTime(filesList);
+    filesList = sortByTimeAndType(filesList);
 
     // 筛选文件列表
     let searchArr = searchFiles && searchFiles.fileArr || [];
-    searchArr = sortByTime(searchArr);
+    searchArr = sortByTimeAndType(searchArr);
     return (
       <PageHeaderWrapper title={false}>
         <Typography.Title level={4} style={{ fontWeight: 'normal' }}>企业共享文档管理</Typography.Title>
@@ -547,9 +563,10 @@ class ShareFiles extends React.Component {
               loading={loading}
               pagination={{
                 current: Number(paramsforFiles.page) + 1,
-                total: files && Number(files.pages) * 10 || 10,
-                pageSize: 10,
+                total: files && Number(files.pages) * paramsforFiles.pageSize || paramsforFiles.pageSize,
                 onChange: this.handlePageChange,
+                showSizeChanger: true,
+                onShowSizeChange: this.sizeChange,
                 // showQuickJumper: true,
               }}
               rowKey="fileId"
@@ -561,6 +578,7 @@ class ShareFiles extends React.Component {
                 cancelText="取消"
                 onConfirm={() => this.deleteFile(selectedRowKeys)}
                 onCancel={() => null}
+                disabled={!hasChoose}
               >
                 <Button type="primary" disabled={!hasChoose} danger>删除</Button>
               </Popconfirm>
@@ -581,8 +599,9 @@ class ShareFiles extends React.Component {
               pagination={{
                 current: Number(paramsforSearch.page) + 1,
                 total: searchFiles && Number(searchFiles.totalNumber),
-                pageSize: 10,
-                onChange: this.handlePageChange
+                onChange: this.handlePageChange,
+                showSizeChanger: true,
+                onShowSizeChange: this.sizeChangeforSearch,
               }}
               rowKey="fileId"
             />
@@ -593,10 +612,11 @@ class ShareFiles extends React.Component {
                 cancelText="取消"
                 onConfirm={() => this.deleteFile(selectedRowKeys)}
                 onCancel={() => null}
+                disabled={!hasChoose}
               >
                 <Button type="primary" disabled={!hasChoose} danger>删除</Button>
               </Popconfirm>
-              <Button type="primary" disabled={!hasChoose} style={{ marginLeft: '10px' }}>下载</Button>
+              <Button type="primary" disabled={!hasChoose} style={{ marginLeft: '10px' }} onClick={() => this.downloadFile(selectedRowKeys)}>下载</Button>
             </div>
           </>
         }

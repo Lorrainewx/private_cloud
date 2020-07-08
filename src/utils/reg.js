@@ -87,8 +87,10 @@ export const isNumStr = value => {
 
 // 成员密码  ^[a-z]+$
 const isPw = /^(?![0-9]+$)(?![a-zA-Z]+$)[0-9A-Za-z]{6,20}$/;
+const isABC = /^[a-zA-Z]{6,20}$/;
+const isNumber = /^[0-9]{6,20}$/;
 export const isPwStr = value => {
-  if (isPw.test(value)) {
+  if (isPw.test(value) || isABC.test(value) || isNumber.test(value)) {
     return true;
   }
   return false;
@@ -105,9 +107,18 @@ export const isDpnameStr = value => {
 
 
 // 登录账号
-const isAccount = /^([0-9a-zA-Z]){1,20}$/;
+const isAccount = /^([0-9a-zA-Z\u4e00-\u9fa5]){1,16}$/;
 export const isAccountStr = value => {
   if (isAccount.test(value)) {
+    return true;
+  }
+  return false;
+}
+
+// 企业简称
+const isEpShortName = /^([0-9a-zA-Z\u4e00-\u9fa5]){2,40}$/;
+export const isEpShortNameStr = value => {
+  if (isEpShortName.test(value)) {
     return true;
   }
   return false;

@@ -1,4 +1,4 @@
-import defaultSettings from '../../config/defaultSettings';
+import settings from '../../config/settings';
 
 const updateColorWeak = colorWeak => {
   const root = document.getElementById('root');
@@ -10,7 +10,7 @@ const updateColorWeak = colorWeak => {
 
 const SettingModel = {
   namespace: 'settings',
-  state: defaultSettings,
+  state: settings,
   reducers: {
     changeSetting(state = defaultSettings, { payload }) {
       const { colorWeak, contentWidth } = payload;

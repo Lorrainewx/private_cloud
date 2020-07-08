@@ -7,7 +7,7 @@ import { omit } from 'lodash';
 import moment from 'moment';
 import defaultSetting from '../../../../config/defaultSettings';
 import { timestampToTime } from '@/utils/utils';
-import { isWebUrlStr, isBlankReg, isAddStr, isEmailStr, isIllegalStr2, isContactStr } from '@/utils/reg';
+import { isWebUrlStr, isBlankReg, isAddStr, isEmailStr, isIllegalStr2, isContactStr, isEpShortNameStr } from '@/utils/reg';
 import { RESULT_STATUS } from '@/const/STATUS';
 import companyType from '@/data/companyType';
 import companyScale from '@/data/companyScale';
@@ -51,8 +51,8 @@ class Infrastructure extends React.Component {
 
   onFinish = values => {
     let { versionLimit } = values;
+    versionLimit = parseInt(versionLimit);
     const newValues = omit(values, ['expireTime', 'companyLogo']);
-
     const { dispatch } = this.props;
     dispatch({
       type: 'enterprise/update',
@@ -110,14 +110,56 @@ class Infrastructure extends React.Component {
     }
   };
 
-  beforeUpload = (e) => {
+  beforeUpload = (value) => {
+    let{type,size} = value;
+    let isImage = type ? /image\/\w+/.test(type) : false;
+    let inSize = size? size/1024/1024 <= 10 :false;
+    if(!isImage){
+      message.error("文件必须为图片!");
+      return;
+    }
+    if(!inSize){
+      message.error("您上传的图片过大!");
+      return;
+    }
+    return isImage && inSize && this.checkImage(value,500,500)
   }
+  checkImage = (file,width,height) => {
+    let self = this;
+    return new Promise(function (resolve, reject) {
+      let filereader = new FileReader();
+      filereader.onload = e => {
+        let src = e.target.result;
+        const image = new Image();
+        image.onload = function () {
+          if ((width && this.width >= width) || (height && this.height >= height)) {
+            message.error('尺寸超出限制，请重新上传500*500的图片');
+            reject();
+          }else {
+            resolve();
+          }
+        };
+        image.onerror = reject;
+        image.src = src;
+      };
+      filereader.readAsDataURL(file);
+    });
+}
 
   settingEdit = () => {
     this.setState({ isEdit: true });
   }
 
-  // 验证  
+  validateToAbbrev = (_, value) => {
+    let result = isEpShortNameStr(value);
+    if (result || !value) {
+      return Promise.resolve();
+    } else {
+      return Promise.reject('企业简称格式有误，请输入2-40位数字、字母及汉字或组合');
+    }
+  }
+
+  // 验证
   // 企业邮箱
   validateToEmail = (_, value) => {
     let result = isEmailStr(value);
@@ -130,7 +172,7 @@ class Infrastructure extends React.Component {
 
   validateToName = (_, value, min, max) => {
     let result = value.length;
-    if (value.length > min && value.length < max || value.length < 1) {
+    if (value.length >= min && value.length <= max || value.length < 1) {
       return Promise.resolve();
     } else {
       return Promise.reject(`请输入${min}-${max}个字符`);
@@ -153,7 +195,7 @@ class Infrastructure extends React.Component {
     if (result || !value) {
       return Promise.resolve();
     } else {
-      return Promise.reject('企业地址格式有误');
+      return Promise.reject('企业地址格式有误，3-40个字符');
     }
   }
 
@@ -166,7 +208,13 @@ class Infrastructure extends React.Component {
       return Promise.reject('企业网站格式有误');
     }
   }
-
+  validateLen=(_,value,max)=>{
+    if (value.length <= max ) {
+      return Promise.resolve();
+    } else {
+      return Promise.reject(`不能超过${max}个字符`);
+    }
+  }
   // 联系方式
   validateToContact = (_, value) => {
     let result = isContactStr(value);
@@ -176,7 +224,13 @@ class Infrastructure extends React.Component {
       return Promise.reject('联系方式格式有误');
     }
   }
-
+  validateToNum=(_,value)=>{
+    if(Number.isInteger(parseFloat(value))){
+      return Promise.resolve();
+    }else{
+      return Promise.reject('不支持特殊字符、小数和空格，只支持整数');
+    }
+}
 
   render() {
     const { fileList, imageUrl, loading, isEdit } = this.state;
@@ -237,9 +291,10 @@ class Infrastructure extends React.Component {
             name="abbrev"
             rules={[
               { required: true, message: '请输入企业简称' },
+              { validator: async (_, value) => await this.validateToAbbrev(_, value) }
             ]}
           >
-            <Input placeholder='请输入企业简称' disabled={!isEdit} autoComplete="off" minLength={2} maxLength={20} />
+            <Input placeholder='请输入企业简称' disabled={!isEdit} autoComplete="off" maxLength={40} />
           </Form.Item>
           <Form.Item
             label="企业邮箱"
@@ -248,48 +303,50 @@ class Infrastructure extends React.Component {
               { validator: async (_, value) => await this.validateToEmail(_, value) }
             ]}
           >
-            <Input placeholder='请输入企业邮箱' disabled={!isEdit} autoComplete="off" />
+            <Input placeholder='请输入企业邮箱(20字符以内)' disabled={!isEdit} autoComplete="off" maxLength={20}/>
           </Form.Item>
           <Form.Item
             label="企业地址"
             name="address"
             rules={[
-              { validator: async (_, value) => await this.validateToAdd(_, value) }
+              { required: true, message: '请输入企业地址' },
+              { validator: async (_, value) => await this.validateLen(_, value,40) }
             ]}
           >
-            <Input placeholder='请输入企业所在地址' disabled={!isEdit} autoComplete="off" />
+            <Input placeholder='请输入企业所在地址' disabled={!isEdit} autoComplete="off"/>
           </Form.Item>
           <Form.Item
             label="企业网站"
             name="site"
             rules={[
+              { validator: async (_, value) => await this.validateLen(_, value, 50) },
               { validator: async (_, value) => await this.validateToWebUrl(_, value) }
             ]}
           >
-            <Input placeholder='请输入企业官网地址' disabled={!isEdit} autoComplete="off" />
+            <Input placeholder='请输入企业官网地址' disabled={!isEdit} autoComplete="off"/>
           </Form.Item>
           <Form.Item label="行业类型" name="industry">
-            <Select placeholder="行业类型" disabled={!isEdit} >
+            <Select placeholder="行业类型" disabled={!isEdit}  style={{ width: '250px' }} getPopupContainer={(triggerNode)=>{ return triggerNode.parentNode}}>
               {
                 companyType.map((item, index) => <Select.Option value={index} key={index}>{item.type}</Select.Option>)
               }
             </Select>
           </Form.Item>
           <Form.Item label="公司规模" name="corpSize">
-            <Select placeholder="公司规模" disabled={!isEdit} >
+            <Select placeholder="公司规模" disabled={!isEdit} getPopupContainer={(triggerNode)=>{ return triggerNode.parentNode}}>
               {
                 companyScale.map((item, index) => <Select.Option value={index} key={index}>{item.type}</Select.Option>)
               }
             </Select>
           </Form.Item>
           <Form.Item label="有效期" name="expireTime">
-            <Input placeholder='请输入有效期' disabled={!isEdit} autoComplete="off" />
-            {/* <DatePicker 
+            <Input placeholder='永久' disabled={true} autoComplete="off"/>
+            {/* <DatePicker
               showTime
               // value={epInfo.data.expireTime ? moment(epInfo.data.expireTime, dateFormat) : undefined}
               // onChange={(val) => {
               //   onUpdateCompensateListInfo('startTime', moment(val, dateFormat))
-              // }} 
+              // }}
             /> */}
           </Form.Item>
           <h4 className={styles.title}>联系人信息</h4>
@@ -298,7 +355,7 @@ class Infrastructure extends React.Component {
             name="contactName"
             rules={[
               { required: true, message: '请输入联系人姓名' },
-              { validator: async (_, value) => await this.validateToName(_, value, 0, 20) },
+              { validator: async (_, value) => await this.validateToName(_, value, 1, 20) },
               { validator: async (_, value) => await this.validateToIllegleStr(_, value) },
             ]}
           >
@@ -315,8 +372,12 @@ class Infrastructure extends React.Component {
             <Input placeholder='请输入联系人电话' type="tel" disabled={!isEdit} autoComplete="off" />
           </Form.Item>
           <h4 className={styles.title}>其他设置</h4>
-          <Form.Item label="单个文件历史版本" name="versionLimit">
-            <Input placeholder='默认历史版本数为10' disabled={!isEdit} type="number" min={0} />
+          <Form.Item label="单个文件历史版本" name="versionLimit"
+            rules={[
+              {validator: async (_, value) => await this.validateToNum(_, value) }
+            ]}
+          >
+            <Input placeholder='默认历史版本数为10' disabled={!isEdit} type="number" min={1} />
           </Form.Item>
           {/* <Col>
             <Form.Item label="创建群组是否需要审批" name="groupApproval">

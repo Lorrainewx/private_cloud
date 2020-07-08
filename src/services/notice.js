@@ -43,8 +43,7 @@ export async function edit(params) {
 }
 // 查询公告未确认和确认人数
 export async function noticeLookInfo(params) {
-  console.log('查询公告未确认和确认人数',params.id)
-  return request(`/epdrive/notice/getNoticeLookInfo/?id=${params.id}`);
+  return request(`/epdrive/notice/getNoticeLookInfo?${stringify(params)}`);
 }
 // 发布公告
 export async function pubilsh(params) {

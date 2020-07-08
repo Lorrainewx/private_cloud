@@ -4,23 +4,24 @@ import { Link, } from 'umi';
 import { Typography, Table, Button, Popconfirm, Modal, Breadcrumb, message, Row, Col } from 'antd';
 import SearchFormDepartment from './searchForm';
 import SearchTree from '@/components/SearchTree';
-import { timestampToTime, unitConversion, generateUuid, getCookie, Base64_decode } from '@/utils/utils';
+import { timestampToTime, unitConversion, generateUuid, getCookie, Base64_decode, Trim } from '@/utils/utils';
 import { connect } from 'dva';
 import { omit } from 'lodash';
 import FileTypeIconMap from '@/utils/files/filesIconMap';
 import YZFile from "@/utils/files/fileInfo";
 import NetHandler from '@/utils/pomelo/netHandler';
-import { formatterForTreeData, getFileId, sortByTime } from '@/utils/cloud';
+import defaultSettings from '../../../../config/defaultSettings';
+import { formatterForTreeData, getFileId, sortByTimeAndType } from '@/utils/cloud';
 
 import styles from './index.less';
 
 import { RESULT_STATUS } from '@/const/STATUS';
 import FILE_TYPE from '@/const/FILE_TYPE';
-
+const { devAuth } = defaultSettings;
 const stateObj = {
-  '1': '已删除',
   '0': '正常',
-  '2': '已回收',
+  '1': '已删除',
+  '2': '彻底删除',
 }
 
 @connect(({ enterprise, file, user }) => ({
@@ -39,10 +40,14 @@ class DepartmentFiles extends React.Component {
         type: FILE_TYPE.ALL,
         page: 0,
         pageSize: 10,
+        options: {
+          status: [0, 1, 2],
+        }
       },
       paramsforSearch: { // 搜索文件参数
         page: 0,
         pageSize: 10,
+        type: FILE_TYPE.FILE,
       },
       searchFiles: {},  //搜索文件的值
       options: {},
@@ -52,6 +57,9 @@ class DepartmentFiles extends React.Component {
         pageSize: 10,
         type: FILE_TYPE.ALL,
         page: 0,
+        options: {
+          status: [0, 1, 2],
+        }
       },
       searchStatus: false,  //搜索状态
       pathList: [], //路径list
@@ -62,7 +70,6 @@ class DepartmentFiles extends React.Component {
   }
 
   componentDidMount() {
-    console.log('componentDidMount');
     const { location: { search } } = this.props;
     this.queryDepartments();  // 部门列表 最大部门文件
     this.load(search);
@@ -100,7 +107,24 @@ class DepartmentFiles extends React.Component {
     let fileId = getFileId(search, 'fileId');
     let departmentId = getFileId(search, 'departmentId');
 
-    if (!fileId) { //请求部门列表      
+    if (!fileId && !departmentId) { //请求部门列表
+      return;
+    }
+
+    if (!fileId && departmentId) { // 最大部门
+      //请求文件列表
+      let listDirParams = Object.assign({}, this.state.listDirParams, { departmentId, page: 0 });
+      // 取路径
+      let navigateObj = localStorage.getItem('navigateInfoD') && JSON.parse(localStorage.getItem('navigateInfoD')) || {};
+
+      this.setState({
+        loading: true,
+        listDirParams,
+        dpId: departmentId,
+        pathList: navigateObj && navigateObj.pathArr || [],
+      }, () => {
+        this.listDirByDepartmentId();
+      })
       return;
     }
 
@@ -119,22 +143,36 @@ class DepartmentFiles extends React.Component {
     })
   }
 
-  getFilePreviewUrl = (params) => {
+  queryCurDepartment = (id, cb) => {
     const { dispatch } = this.props;
     dispatch({
-      type: 'file/preview',
-      payload: params,
-      callback: res => {
+      type: 'enterprise/fetchDepartment',
+      payload: { id },
+      callback: (res) => {
         if (res && res.code == RESULT_STATUS.SUCCESS) {
-          let previewUrl = res.data.url;
-          window.open(previewUrl, "_blank");
+          cb && typeof cb == 'function' && cb(res);
         }
       }
     })
   }
 
+  getFilePreviewUrl = (params) => {
+    const { dispatch } = this.props;
+    dispatch({
+      type: 'file/preview',
+      payload: omit(params, ['fileName', 'method']),
+      callback: res => {
+        if (res && res.code == RESULT_STATUS.SUCCESS) {
+          let previewUrl = `/third.html?fileId=${params.fileId}&version=${params.version}&trash=false&method=${params.method}&fileName=${encodeURI(encodeURI(params.fileName))}&uuid=${params.uuid}`;
+          window.open(previewUrl, "_blank");
+        }
+      }
+
+    })
+
+  }
+
   querySearchFiles = async () => {
-    console.log('执行 querySearchFiles');
     let { options, paramsforSearch } = this.state;
     let res = await NetHandler.searchFileByDepartmentId({
       options,
@@ -188,18 +226,23 @@ class DepartmentFiles extends React.Component {
 
   deleteFile = async (file) => {
     let params = {
-      deleteVersionIds: [],
       fidArr: typeof file == 'object' ? file : [file],
     }
     let res = await NetHandler.deleteByIds({ ...params });
     if (this.noresult(res)) return;
     message.success('删除成功');
-    // 请求文件
-    let { searchStatus } = this.state;
+    this.setState({
+      selectedRowKeys: []
+    })
 
-    searchStatus && this.querySearchFiles();
+    // 搜索状态
+    let { searchStatus } = this.state;
+    // 部门文当列表/普通文件列表
     const { location: { search } } = this.props;
     let fileId = getFileId(search, 'fileId');
+
+    searchStatus && this.querySearchFiles();
+
     if (!!fileId) {
       !searchStatus && this.queryListDirFiles();
     } else {
@@ -235,6 +278,9 @@ class DepartmentFiles extends React.Component {
         if (res && res.code == RESULT_STATUS.SUCCESS) {
           window.location = res.data;
           message.success('下载成功');
+          this.setState({
+            selectedRowKeys: []
+          })
         }
       }
     })
@@ -284,25 +330,37 @@ class DepartmentFiles extends React.Component {
 
 
   handleReset = () => {
-    let { params, listDirParams, dpId } = this.state;
+    let { dpId, pathList } = this.state;
+
+    let paramsforSearch = omit(this.state.paramsforSearch, ['queryString']);
+    let options = Object.assign({}, this.state.options, { status: [0, 1, 2] });
+    options = omit(options, ['startTime', 'endTime']);
+
+    let listDirParams = Object.assign({}, this.state.listDirParams, { page: 0, pageSize: 10, options: { status: [0, 1, 2] }, departmentId: dpId });
+    pathList = pathList.filter(v => v.fileId == undefined);
 
     this.setState({
-      params: omit(params, ['queryString']),
-      options: {},
+      options,
+      paramsforSearch,
+      listDirParams,
       loading: true,
       files: {},
       searchStatus: false,
-      listDirParams: { pageSize: 10, page: 0, departmentId: dpId }, // 归零
       canReset: false,
+      pathList,
     }, () => {
+      localStorage.removeItem('navigateInfoD');
+      let newObj = { pathArr: pathList };
+      localStorage.setItem('navigateInfoD', JSON.stringify(newObj));
+      this.gotoStart();
       this.listDirByDepartmentId();
     })
   }
 
   handleSubmit = (values) => {
-    let { dpId } = this.state;
+    let { dpId, pathList } = this.state;
     let { status, createTime, queryString } = values;
-    queryString = queryString ? queryString.trim() : "";
+    queryString = queryString ? Trim(queryString) : "";
     status = status || status == 0 ? [status] : [0, 1, 2];
 
     let startTime = null,
@@ -322,11 +380,28 @@ class DepartmentFiles extends React.Component {
     }
 
     let options = Object.assign({}, this.state.options, { status, startTime, endTime });
-    let paramsforSearch = Object.assign({}, this.state.paramsforSearch, { queryString, departmentId: dpId });
-    this.setState({ options, paramsforSearch, searchStatus: true, sLoading: true, pathList: [], canReset: true, }, () => {
+    let paramsforSearch = Object.assign({}, this.state.paramsforSearch, { queryString, departmentId: dpId, page: 0 });
+    pathList = pathList.filter(v => v.fileId == undefined);
+    this.setState({ options, paramsforSearch, searchStatus: true, pathList, sLoading: true, canReset: true, selectedRowKeys: [] }, () => {
       localStorage.removeItem('navigateInfoD');
+       
+      let newObj = { pathArr: pathList };
+      localStorage.setItem('navigateInfoD', JSON.stringify(newObj));
+
+      this.gotoStart();
       this.querySearchFiles();
     })
+  }
+
+  gotoStart = () => {
+    let { dpId } = this.state;
+    let { history } = this.props;
+    if (window.location.search != "") {
+      history.replace({
+        pathname: '/files/department',
+        search: `departmentId=${dpId}`
+      });
+    }
   }
 
   handlePageChange = (pageNumber, pageSize) => {  // 成员信息 页码查询
@@ -334,21 +409,22 @@ class DepartmentFiles extends React.Component {
     const { location: { search } } = this.props;
     let fileId = getFileId(search, 'fileId');
 
-    if(!!fileId && !searchStatus) {
+    if (!!fileId && !searchStatus) {
       paramsforFiles = Object.assign({}, this.state.paramsforFiles, { page: pageNumber - 1 });
     } else {
       listDirParams = Object.assign({}, this.state.listDirParams, { page: pageNumber - 1 });
     }
-    if(searchStatus) {
+    if (searchStatus) {
       paramsforSearch = Object.assign({}, this.state.paramsforSearch, { page: pageNumber - 1 });
     }
 
-    this.setState({ 
-      listDirParams, 
-      paramsforSearch, 
-      paramsforFiles, 
-      sLoading: true, 
-      loading: true, 
+    this.setState({
+      listDirParams,
+      paramsforSearch,
+      paramsforFiles,
+      sLoading: true,
+      loading: true,
+      selectedRowKeys: [],
     }, () => {
       searchStatus && this.querySearchFiles();  // 查询状态下
       if (!!fileId) { // 子级目录
@@ -357,6 +433,29 @@ class DepartmentFiles extends React.Component {
         !searchStatus && this.listDirByDepartmentId();
       }
     });
+  }
+
+  sizeChange = (page, pageSize) => {  // 搜索状态下的改变每页条数
+    let paramsforSearch = Object.assign({}, this.state.paramsforSearch, { pageSize, page: 0 });
+    this.setState({ paramsforSearch, sLoading: true }, () => {
+      this.querySearchFiles();
+    })
+  }
+
+  sizeChangeforListDir = (page, pageSize) => {
+    const { location: { search } } = this.props;
+    let fileId = getFileId(search, 'fileId');
+    if (!!fileId) {
+      let paramsforFiles = Object.assign({}, this.state.paramsforFiles, { pageSize, page: 0 });
+      this.setState({ paramsforFiles, loading: true }, () => {
+        this.queryListDirFiles();
+      })
+    } else {
+      let listDirParams = Object.assign({}, this.state.listDirParams, { pageSize, page: 0 });
+      this.setState({ listDirParams, loading: true }, () => {
+        this.listDirByDepartmentId();
+      })
+    }
   }
 
   handleListDirPageChange = () => { // 文件目录下一级
@@ -368,7 +467,7 @@ class DepartmentFiles extends React.Component {
   }
 
   openFiles = (fileInfo) => {
-    console.log('文件信息：', fileInfo);
+    if (fileInfo.status == '2' && !isFolder) return;
     let isFolder = fileInfo.isFolder();
     switch (isFolder) {
       case true:  // 文件夹
@@ -393,9 +492,12 @@ class DepartmentFiles extends React.Component {
         let params = {
           fileId: fileInfo.fileId,
           uuid: generateUuid(8, 62),
-          version: 0,
+          version: -1,
           mobile: false,
+          fileName: fileInfo.fileName,
+          method: 3,
         }
+
         this.getFilePreviewUrl({ ...params });
         break;
     }
@@ -411,7 +513,7 @@ class DepartmentFiles extends React.Component {
       dataIndex: 'fileName',
       key: 'fileName',
       align: 'left',
-      width: 240,
+      width: 150,
       render: (text, record) => {
         let fileInfo = YZFile(record);
         let iconPos = FileTypeIconMap.getIconPositionForFilInfo(fileInfo);
@@ -436,7 +538,7 @@ class DepartmentFiles extends React.Component {
                   {text}
                 </span>
             }
-            {text.length > 10 && <span className={styles.allwords}>{text}</span>}
+            {/* {text.length > 10 && <span className={styles.allwords}>{text}</span>} */}
           </div>
         )
       }
@@ -446,14 +548,14 @@ class DepartmentFiles extends React.Component {
       dataIndex: 'creatorName',
       key: 'creatorName',
       align: 'center',
-      width: 150,
+      width: 100,
     },
     {
       title: '文件状态',
       dataIndex: 'status',
       key: 'state',
       align: 'center',
-      width: 100,
+      width: 80,
       render: state => <span className={`${styles[state]}`}>{stateObj[state]}</span>
     },
     {
@@ -461,7 +563,7 @@ class DepartmentFiles extends React.Component {
       dataIndex: 'mtime',
       key: 'mtime',
       align: 'center',
-      width: 200,
+      width: 160,
       render: (text, record) => <span>{text ? text : record.ctime}</span>
     },
     {
@@ -469,19 +571,19 @@ class DepartmentFiles extends React.Component {
       dataIndex: 'fileSize',
       key: 'fileSize',
       align: 'center',
-      width: 100,
+      width: 80,
       render: size => <span>{unitConversion(size)}</span>
     },
     {
-      title: '分享',
+      title: '共享',
       key: 'share',
       align: 'center',
-      width: 80,
+      width: 60,
       render: (_, record) => {
         let fileInfo = YZFile(record);
         return (
           <Popconfirm
-            title="确定关闭分享吗？"
+            title="确定关闭共享吗？"
             okText="确定"
             cancelText="取消"
             onConfirm={() => this.closeShare(record)}
@@ -496,7 +598,7 @@ class DepartmentFiles extends React.Component {
       title: '协作',
       key: 'edit',
       align: 'center',
-      width: 80,
+      width: 60,
       render: (_, record) => {
         let fileInfo = YZFile(record);
         return (
@@ -517,20 +619,20 @@ class DepartmentFiles extends React.Component {
       dataIndex: 'action',
       key: 'action',
       align: 'center',
-      width: 200,
+      width: 120,
       render: (_, record) => {
         return <>
           <Popconfirm
-            title="确定删除文件吗？"
+            title="文件被删除后不可恢复"
             okText="确定"
             cancelText="取消"
             onConfirm={() => this.deleteFile(record.fileId)}
-            disabled={record.state == '1'}
+            disabled={record.status == '2'}
             onCancel={() => null}
           >
-            <Button type="link" danger disabled={record.state == '1'}>删除</Button>
+            <Button type="link" danger disabled={record.status == '2'}>删除</Button>
           </Popconfirm>
-          <Button onClick={() => this.downloadFile(record.fileId)} type="link" disabled={record.state == '1'}>下载</Button>
+          <Button onClick={() => this.downloadFile(record.fileId)} type="link" disabled={record.status == '2'}>下载</Button>
         </>
       }
     }
@@ -541,29 +643,28 @@ class DepartmentFiles extends React.Component {
   };
 
   treeItemClick = (value) => {
-    console.log(value, '部门ID');
-    // 请求folderId
-    let listDirParams = Object.assign({}, this.state.listDirParams, { departmentId: value, page: 0 });
+    this.queryCurDepartment(value, res => {
+      let i = res && res.data;
+      let partmentArray = [{ fileName: i.name }];
 
-    this.setState({
-      listDirParams,
-      loading: true,
-      pathList: [],
-      dpId: value,
-      searchStatus: false,
-      paramsforSearch: { page: 0, pageSize: 10 },
-      options: {},
-    }, () => {
-      this.listDirByDepartmentId();
-      localStorage.removeItem('navigateInfoD'); // 部门文件的路径
+      // 请求folderId
+      let listDirParams = Object.assign({}, this.state.listDirParams, { departmentId: value, page: 0 });
 
-      const { history } = this.props;
-      if (window.location.search != "") {
-        history.replace({
-          pathname: '/files/department',
-          search: 'item'
-        });
-      }
+      this.setState({
+        listDirParams,
+        loading: true,
+        pathList: partmentArray,
+        dpId: value,
+        searchStatus: false,
+        paramsforSearch: { page: 0, pageSize: 10, type: FILE_TYPE.FILE },
+        options: {},
+      }, () => {
+        localStorage.removeItem('navigateInfoD'); // 部门文件的路径      
+        let newObj = { pathArr: partmentArray };
+        localStorage.setItem('navigateInfoD', JSON.stringify(newObj));
+        this.gotoStart();
+        this.listDirByDepartmentId();
+      });
     });
   }
 
@@ -606,6 +707,10 @@ class DepartmentFiles extends React.Component {
     const rowSelection = {
       selectedRowKeys,
       onChange: this.onSelectChange,
+      getCheckboxProps: record => ({
+        disabled: record.status == '2', // Column configuration not to be checked
+        name: record.status,
+      }),
     };
 
     const hasChoose = selectedRowKeys.length > 0;
@@ -614,17 +719,21 @@ class DepartmentFiles extends React.Component {
     
     // 文件列表
     let fileInfos = files && files.resultSet && files.resultSet.fileInfos || [];
-    fileInfos = sortByTime(fileInfos);
+    fileInfos = sortByTimeAndType(fileInfos);
 
     // 筛选文件列表
     let searchArr = searchFiles && searchFiles.fileArr || [];
-    searchArr = sortByTime(searchArr);
+    searchArr = sortByTimeAndType(searchArr);
+
+    // 当前页
+    let currentpage = fileId ? Number(paramsforFiles.page + 1) : Number(listDirParams.page + 1);
+    let pageSize = fileId ? paramsforFiles.pageSize : listDirParams.pageSize;
 
     return (
       <PageHeaderWrapper title={false}>
         <Typography.Title level={4} style={{ fontWeight: 'normal' }}>部门文档管理</Typography.Title>
         <Row gutter={20}>
-          <Col span={6} style={{ marginTop: '30px' }}>
+          <Col span={4} style={{ marginTop: '30px' }}>
             <SearchTree
               placeholder="搜索部门"
               treeData={formatterForTreeData(departments)}
@@ -635,7 +744,7 @@ class DepartmentFiles extends React.Component {
             // value={dpId}
             />
           </Col>
-          <Col span={18}>
+          <Col span={20}>
             {
               pathList.length > 0 &&
               <Breadcrumb style={{ margin: '34px 0 20px' }}>
@@ -645,9 +754,13 @@ class DepartmentFiles extends React.Component {
                       <Breadcrumb.Item
                         onClick={() => this.backtofiles(i)}
                         style={{ cursor: 'pointer' }}
-                        key={i.fileId}
+                        key={i.fileId ? i.fileId : 1}
                       >
-                        <Link to={`/files/department?fileId=${i.fileId}&departmentId=${this.state.dpId}`} >{i.fileName}</Link>
+                        {
+                          !i.fileId
+                            ? <Link to={`/files/department?departmentId=${this.state.dpId}`} >{i.fileName}</Link>
+                            : <Link to={`/files/department?fileId=${i.fileId}&departmentId=${this.state.dpId}`} >{i.fileName}</Link>
+                        }
                       </Breadcrumb.Item>
                     )
                   })
@@ -667,14 +780,15 @@ class DepartmentFiles extends React.Component {
                 <Table
                   columns={this.columns}
                   dataSource={searchArr}
-                  scroll={{ x: 1400 }}
+                  scroll={{ x: 800 }}
                   rowSelection={rowSelection}
                   loading={sLoading}
                   pagination={{
                     current: Number(paramsforSearch.page) + 1,
                     total: searchFiles && Number(searchFiles.totalNumber),
-                    pageSize: 10,
-                    onChange: this.handlePageChange
+                    onChange: this.handlePageChange,
+                    showSizeChanger: true,
+                    onShowSizeChange: this.sizeChange,
                   }}
                   rowKey="fileId"
                 />
@@ -685,10 +799,11 @@ class DepartmentFiles extends React.Component {
                     cancelText="取消"
                     onConfirm={() => this.deleteFile(selectedRowKeys)}
                     onCancel={() => null}
+                    disabled={!hasChoose}
                   >
                     <Button type="primary" disabled={!hasChoose} danger>删除</Button>
                   </Popconfirm>
-                  <Button type="primary" disabled={!hasChoose} style={{ marginLeft: '10px' }}>下载</Button>
+                  <Button type="primary" disabled={!hasChoose} style={{ marginLeft: '10px' }} onClick={() => this.downloadFile(selectedRowKeys)}>下载</Button>
                 </div>
               </>
             }
@@ -702,10 +817,11 @@ class DepartmentFiles extends React.Component {
                   scroll={{ x: 1400 }}
                   pagination={{
                     size: 'small',
-                    pageSize: 10,
-                    total: Number(files.pages * 10),
-                    current: !!fileId || fileId == 0 ? Number(paramsforFiles.page + 1) : Number(listDirParams.page + 1),
+                    total: Number(files.pages * pageSize),
+                    current: currentpage,
                     onChange: this.handlePageChange,
+                    showSizeChanger: true,
+                    onShowSizeChange: this.sizeChangeforListDir,
                     // showQuickJumper: true
                   }}
                   loading={loading}
@@ -718,6 +834,7 @@ class DepartmentFiles extends React.Component {
                     cancelText="取消"
                     onConfirm={() => this.deleteFile(selectedRowKeys)}
                     onCancel={() => null}
+                    disabled={!hasChoose}
                   >
                     <Button type="primary" disabled={!hasChoose} danger>删除</Button>
                   </Popconfirm>

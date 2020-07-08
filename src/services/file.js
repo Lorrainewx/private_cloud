@@ -4,7 +4,7 @@ import { omit } from 'lodash';
 
 // 下载文件
 export async function downloadFiles(params) {
-    return request(`/epdrive/file/downloadFile?${stringify(params)}`, {
+    return request(`/epdrive/admin/file/downloadFile?${stringify(params)}`, {
         method: 'POST',
     });    
 }

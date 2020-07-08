@@ -6,20 +6,14 @@
  * https://pro.ant.design/docs/deploy
  */
 
-import defaultSettings from './defaultSettings';
-const { auth, yocloud, devAuth } = defaultSettings;
-
+const target = 'http://192.168.1.3';
 export default {
   '/epauth/': {
-    target: devAuth,
+    target,
     changeOrigin: true,
   },
-  // '/api/': {
-  //   target: auth,
-  //   changeOrigin: true,
-  // },
   '/epdrive/': {
-    target: devAuth,
+    target,
     changeOrigin: true,
   }
 };

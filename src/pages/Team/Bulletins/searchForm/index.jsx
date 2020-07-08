@@ -55,7 +55,7 @@ class SearchFormBulletins extends React.Component {
             >
                 <Row gutter={16}>
                     <Col {...layoutCol}>
-                        <Form.Item label="搜索内容：" name="title">
+                        <Form.Item label="搜索：" name="title">
                             <Input.Search placeholder="请输入发布人/公告标题" onSearch={this.onSearch} />
                         </Form.Item>
                     </Col>

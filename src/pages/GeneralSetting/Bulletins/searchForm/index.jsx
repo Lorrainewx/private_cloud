@@ -63,7 +63,7 @@ class SearchFormBulletinsManage extends React.Component {
                         <Row>
                             <Col {...layoutCol}>
                                 <Form.Item label="状态查询：" name="state">
-                                    <Select placeholder="公告状态" onChange={this.onChangStatus}>
+                                    <Select placeholder="公告状态" onChange={this.onChangStatus} getPopupContainer={(triggerNode)=>{ return triggerNode.parentNode}}>
                                         <Option value={0} key={0}>待发布</Option>
                                         <Option value={1} key={1}>已发布</Option>
                                         <Option value={2} key={2}>已过期</Option>
@@ -72,8 +72,8 @@ class SearchFormBulletinsManage extends React.Component {
                                 </Form.Item>
                             </Col>
                             <Col {...layoutCol}>
-                                <Form.Item label="搜索内容：" name="title"> {/*公告标题*/}
-                                    <Input.Search placeholder="请输入发布人" onSearch={this.onSearch} />
+                                <Form.Item label="搜索：" name="title"> {/*公告标题*/}
+                                    <Input.Search placeholder="请输入内容" onSearch={this.onSearch} />
                                 </Form.Item>
                             </Col>
                             <Col {...layoutCol}>

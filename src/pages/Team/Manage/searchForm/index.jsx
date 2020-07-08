@@ -51,7 +51,7 @@ class SearchFormManage extends React.Component {
                         <Row>
                             <Col {...layoutCol}>
                                 <Form.Item label="群组状态：" name="state">
-                                    <Select placeholder="群组状态" onChange={this.onSelect}>
+                                    <Select placeholder="群组状态" onChange={this.onSelect} getPopupContainer={(triggerNode)=>{ return triggerNode.parentNode}}>
                                         <Option value="0">正常</Option>
                                         <Option value="1">已解散</Option>
                                     </Select>

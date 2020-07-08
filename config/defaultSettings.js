@@ -1,29 +1,14 @@
+
+// const window = window || false;
 const release = false;
+const localEnv = true;  // 是否是本地开发环境
+const pomeloEnv = true;   //pomelo配置信息选择，为true时（手动配置对应值），为false时（从当前页面url获取对应值）
+const host = location?.host; //当前域名
+const protocol = location?.protocol.replace(':',''); //当前浏览器协议
 export default {
-  navTheme: 'dark',
-  // 拂晓蓝
-  primaryColor: '#1890ff',
-  layout: 'sidemenu',
-  contentWidth: 'Fluid',
-  fixedHeader: false,
-  autoHideHeader: false,
-  fixSiderbar: false,
-  colorWeak: false,
-  menu: {
-    locale: true,
-  },
-  title: '优云文档管理系统',
-  pwa: false,
-  version: 14,
-  auth: release ? 'https://auth.yozocloud.cn' : 'https://auth.yozodocs.com',
-  yocloud: release ? 'https://www.yozocloud.cn' : 'https://www.yozodocs.com',
-  devAuth: 'http://192.168.1.3',
-  sourceUrl: 'https://yozonetdriver.obs.cn-east-2.myhuaweicloud.com',
-  shema: "https",
-  host: "pomelo.yozodocs.com",
-  connectRoute: "connector.entryHandler.connect",
-  port: 3080,
-  protocal: "ws",
-  devHost: '192.168.1.3',
-  devPort: 3060,
+  devAuth: localEnv ? 'http://192.168.1.3' : protocol == 'http' ? `http://${host}` : `https://${host}`,
+  protocal: protocol == 'http' ? "ws":'wss',
+  host: pomeloEnv ? "192.168.1.3" : host,
+  port: protocol == 'http' ? '3060' : '3080',
+  connectRoute: protocol == 'http' ? "connector.entryHandler.connect" :'sconnector.entryHandler.connect',  
 };

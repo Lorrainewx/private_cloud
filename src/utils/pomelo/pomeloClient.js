@@ -21,13 +21,13 @@ let defaultParams = {
     "app": "ep-web"
 };
 
-let { shema, host, connectRoute, port, protocal, devHost, devPort } = defaultSettings;
+let { connectRoute, port, protocal, host } = defaultSettings;
 
 //TODO 连接失败处理
 const _connect_p = () => {
     return new Promise(resolve => pomelo.init({
-        host: devHost,
-        port: devPort,
+        host,
+        port,
         protocal,
         reconnect: true,
     }, function (res) {
@@ -162,7 +162,7 @@ const _initEvents = () => {
     });
     pomelo.on('io-error', function (res) {
         console.log("Pomelo:io-error", res);
-        // message.error('网络异常，请稍后再试');
+        message.error('网络异常，请刷新页面，稍后再试');
         return;
     });
 

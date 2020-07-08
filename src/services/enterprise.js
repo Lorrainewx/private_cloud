@@ -80,3 +80,8 @@ export async function addRoleForCorp(params) {
 export async function getAdminRoles() {
     return request(`/epauth/api/admin/corp/role/list`);    
 }
+
+// 一级部门文档数量
+export async function getEnterpriseDepartmentFileCount() {
+    return request(`/epdrive/enterprise/getEnterpriseDepartmentFileCount`);  
+}

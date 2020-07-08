@@ -22,7 +22,6 @@ class Watermark extends React.Component {
       userNameFlag: false,
       fileList: [],
       waterMarkInfo: {},
-      previewVisible:false,
       previewSrc:null,
     }
     console.log('constructor')
@@ -39,7 +38,9 @@ class Watermark extends React.Component {
      type:'watermarks/getEnterpriseWaterMark',
      callback:(res)=>{
        if(res.success){
-         this.setState({ waterMarkInfo: res.data });
+         let {watermarkPositionType,watermarkScope,watermarkTransparent,watermarkType,wordWaterMark} = res.data;
+         let params = Object.assign({},this.state.waterMarkInfo,{watermarkPositionType,watermarkScope,watermarkTransparent,watermarkType,wordWaterMark})
+         this.setState({waterMarkInfo:params});
          switch (res.data.watermarkType) {
            case 0:
             self.setFlag(false,'wordFlag','userNameFlag')
@@ -51,11 +52,9 @@ class Watermark extends React.Component {
              self.setFlag(true,'userNameFlag','wordFlag')
              break
          }
-         // let state = Object.assign({},this.state,res.data);
-         // self.setState({ state }, () => {
-         //   console.log(self.state);
-         // })
 
+       }else{
+         message.error(res.message)
        }
      }
    })
@@ -74,8 +73,10 @@ class Watermark extends React.Component {
   // }
 
   onChange = (e, type) => {
-    console.log('----e',e.target.value)
-      console.log('-----type',type)
+    if(type == 'wordWaterMark' && e.target.value.length > 20) {
+      message.error('水印字数过长');
+      return
+    }
     let waterMarkInfo = Object.assign({},this.state.waterMarkInfo, { [type]: e.target.value });
     this.setState({ waterMarkInfo },()=>{
       this.modifyWaterMark();
@@ -136,29 +137,33 @@ class Watermark extends React.Component {
         type:'watermarks/modifyWaterMark',
         payload:waterMarkInfo,
         callback:(res)=>{
-          console.log('modify watermarks:',res);
+          if(res.success)  message.success('修改成功')
+          else  message.error('修改成功')
         }
     })
   }
   //水印预览
   preview=()=>{
-    this.setState({previewVisible:true})
     const {dispatch} = this.props;
-    let {watermarkType,positionType,watermarkText,transparent}= this.state.waterMarkInfo
-   if(watermarkText=''){
+    let {watermarkType,wordWaterMark,watermarkTransparent}= this.state.waterMarkInfo
+   if(wordWaterMark == ''){
      message.error('请输入水印文字')
      return
    }
     let params={
-      watermarkTransparent:transparent,
+      watermarkTransparent:watermarkTransparent,
       watermarkType:watermarkType,
-      wordWaterMark:watermarkText
+      wordWaterMark:wordWaterMark
     }
     dispatch({
       type:'watermarks/PreviewWaterMark',
       payload:params,
-      callback:(res)=>{
-        this.setState({previewSrc:res['url']})
+      callback:(res)=> {
+        let url = res.data.url;
+        if (url) {
+          var tempwindow = window.open('_blank'); // 先打开页面
+          tempwindow.location = url;
+        }
       }
     })
 
@@ -223,7 +228,7 @@ class Watermark extends React.Component {
         <Typography.Text style={{ ...textStyle }}>水印效果</Typography.Text>
         <>
           <span>不透明度：</span>
-          <Select style={{ width: '100px', marginLeft: '10px' }} value={watermarkTransparent} onChange={(v)=>this.changeTransparency(v,'watermarkTransparent')}>
+          <Select style={{ width: '100px', marginLeft: '10px' }} value={watermarkTransparent} onChange={(v)=>this.changeTransparency(v,'watermarkTransparent')} getPopupContainer={(triggerNode)=>{ return triggerNode.parentNode}}>
             {
               transparencyArr.map((item, index) => <Option key={item} value={item}>{item}%</Option>)
             }
@@ -242,22 +247,22 @@ class Watermark extends React.Component {
         </div>
         <div className={styles.wmContent} hidden={!wordFlag}>
           <span>输入水印内容</span>
-          <Input placeholder="水印内容" value={wordWaterMark} onChange={(v)=>this.onChange(v,'wordWaterMark')}/>
+          <Input placeholder="请输入水印内容（20字以内）" value={wordWaterMark} maxLength={20} onChange={(v)=>this.onChange(v,'wordWaterMark')}/>
           <Button type="primary" ghost onClick={this.preview}>预览效果</Button>
-          <Button type="primary" onClick={this.modifyWaterMark} name='wordWaterMark'>确定</Button>
+          {/*<Button type="primary" onClick={this.modifyWaterMark} name='wordWaterMark'>确定</Button>*/}
         </div>
-        <Modal
-          visible={previewVisible}
-          title='水印预览'
-          destroyOnClose={true}
-          maskClosable={true}
-          width="780px"
-          footer={null}
-          onCancel={() => this.setState({visible:false,isValue:false})}
-          onOk={() => this.setState({visible:false,isValue:false})}
-        >
-          <Image src={previewSrc}  />
-        </Modal>
+        {/*<Modal*/}
+        {/*  visible={previewVisible}*/}
+        {/*  title='水印预览'*/}
+        {/*  destroyOnClose={true}*/}
+        {/*  maskClosable={true}*/}
+        {/*  width="780px"*/}
+        {/*  footer={null}*/}
+        {/*  onCancel={() => this.setState({visible:false,isValue:false})}*/}
+        {/*  onOk={() => this.setState({visible:false,isValue:false})}*/}
+        {/*>*/}
+        {/*  <Image src={previewSrc}  />*/}
+        {/*</Modal>*/}
         <div className={styles.item} hidden={true}>
           <span>图片水印</span>
           <Switch

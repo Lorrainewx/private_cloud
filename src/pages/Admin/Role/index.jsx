@@ -7,6 +7,7 @@ import { connect } from 'dva';
 import styles from './index.less';
 import { formatter } from '@/utils/cloud';
 import { isBlankReg } from '@/utils/reg';
+import { Trim } from '@/utils/utils';
 import { RESULT_STATUS } from '@/const/STATUS';
 
 const { TabPane } = Tabs;
@@ -141,10 +142,18 @@ class Role extends React.Component {
   }
 
   addRoleOK = () => {
-    let { name } = this.state;
+    let { name, roles } = this.state;
     if (isBlankReg(name)) {
-      message.error('姓名不为空');
+      message.error('角色名不为空');
       return;
+    }
+    for (let item of roles) {
+      name = Trim(name);
+      let alreadyName = Trim(item.name);
+      if(name == alreadyName) {
+        message.error('角色名已存在');
+        return;
+      }
     }
 
     this.addNewRole({ name });
@@ -199,7 +208,7 @@ class Role extends React.Component {
       adminRoles,
     } = this.props;
     adminRoles = adminRoles && adminRoles.data || [];
-    roles = adminRoles.map(item => { return { ...item, actionVisible: role.id == item.id && !item.actionVisible } });
+    roles = adminRoles.map(item => { return { ...item, actionVisible: role.id == item.id && !role.actionVisible } });
     this.setState({ roles });
   }
 
@@ -216,15 +225,12 @@ class Role extends React.Component {
   render() {
     const { editStatus, addRoleVisible, roles, currentTab, checkedKeys } = this.state;
     let {
-      adminRoles,
       account: { menuConfig, currentMenus },
       loading,
     } = this.props;
 
     menuConfig = menuConfig && menuConfig.data || [];
     currentMenus = currentMenus && currentMenus.data || [];
-
-    adminRoles = adminRoles && adminRoles.data || [];
     const menusData = this.props.menus.menusData;
     const permissionsAllArr = formatter(menuConfig, !editStatus);
 
@@ -250,7 +256,7 @@ class Role extends React.Component {
                       <div className={styles.actions} hidden={!item.actionVisible}>
                         <Button onClick={this.openEdit} size="small" disabled={editStatus}>编辑</Button>
                         <Popconfirm
-                          title="请确定删除该权限，删除后该成员将不会有该角色权限"
+                          title="请确定删除该角色"
                           onConfirm={() => this.deleteRoleOK(item)}
 
                         >
@@ -284,15 +290,15 @@ class Role extends React.Component {
         </Tabs>
 
         <Modal
-          title="新增权限"
+          title="新增角色"
           visible={addRoleVisible}
           destroyOnClose={true}
           onOk={this.addRoleOK}
           onCancel={() => this.closeModal('addRoleVisible')}
         >
           <div className={styles.input}>
-            <span>权限名称：</span>
-            <Input placeholder="权限名称" onChange={this.setPername} />
+            <span>角色名称：</span>
+            <Input placeholder="角色名称" onChange={this.setPername} minLength={2} maxLength={10} />
           </div>
         </Modal>
         <Button type="primary" icon={<PlusOutlined />} style={{ margin: '16px 10px' }} onClick={this.addRole}>新增角色</Button>

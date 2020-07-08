@@ -9,8 +9,7 @@ export  async function getEnterpriseWaterMark (params){
   return request('/epdrive/enterprise/getEnterpriseWaterMark')
 }
 export  async function PreviewWaterMark (params){  //水印预览
-  return request('/epdrive/enterprise/waterMarkPreview',{
-    methods:'POST',
-    body:params
+  return request(`/epdrive/enterprise/waterMarkPreview?${stringify(params)}`,{
+    method:'POST',
   })
 }

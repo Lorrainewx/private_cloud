@@ -1,9 +1,9 @@
 import { Button, message, notification } from 'antd';
 import React from 'react';
 import { formatMessage } from 'umi';
-import defaultSettings from '../config/defaultSettings';
+import settings from '../config/settings';
 
-const { pwa } = defaultSettings; // if pwa is true
+const { pwa } = settings; // if pwa is true
 
 if (pwa) {
   // Notify user if offline now

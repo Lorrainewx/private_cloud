@@ -46,7 +46,8 @@ class SearchFormManage extends React.Component {
                 <Row gutter={16}>
                     <Col {...layoutCol}>
                         <Form.Item label="选择角色：" name="roleId">
-                            <Select placeholder="角色" onChange={this.onScreen}>
+                            <Select placeholder="角色" onChange={this.onScreen} getPopupContainer={(triggerNode)=>{ return triggerNode.parentNode}}>
+                                <Option value={null} >所有角色</Option>
                                 {
                                     roles.map(item => <Option value={item.id} key={item.id}>{item.name}</Option>)
                                 }

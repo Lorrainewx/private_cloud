@@ -1,6 +1,6 @@
 // https://umijs.org/config/
 import { defineConfig } from 'umi';
-import defaultSettings from './defaultSettings';
+import settings from './settings';
 import proxy from './proxy';
 import Menus from './router.config';
 
@@ -35,7 +35,7 @@ export default defineConfig({
   // Theme for antd: https://ant.design/docs/react/customize-theme-cn
   theme: {
     // ...darkTheme,
-    'primary-color': defaultSettings.primaryColor,
+    'primary-color': settings.primaryColor,
   },
   // @ts-ignore
   title: false,

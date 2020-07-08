@@ -5,20 +5,22 @@ import { Link } from 'umi';
 import { connect } from 'dva';
 import { omit } from 'lodash';
 import SearchFormTeam from './searchForm';
-import { timestampToTime, unitConversion, generateUuid, getCookie, Base64_decode } from '@/utils/utils';
-import { getFileId, sortByTime } from '@/utils/cloud';
+import { timestampToTime, unitConversion, generateUuid, getCookie, Base64_decode, Trim } from '@/utils/utils';
+import { getFileId, sortByTimeAndType } from '@/utils/cloud';
 import FileTypeIconMap from '@/utils/files/filesIconMap';
 import YZFile from '@/utils/files/fileInfo';
 import NetHandler from '@/utils/pomelo/netHandler';
 import { RESULT_STATUS } from '@/const/STATUS';
+import FILE_TYPE from '@/const/FILE_TYPE';
+import defaultSettings from '../../../../config/defaultSettings';
 
 import styles from './index.less';
+let { devAuth } = defaultSettings;
 
-import FILE_TYPE from '@/const/FILE_TYPE';
 const stateObj = {
-  '1': '已删除',
   '0': '正常',
-  '2': '已回收',
+  '1': '已删除',
+  '2': '彻底删除',
 }
 @connect(({ packet, file, user }) => ({
   packet,
@@ -33,12 +35,16 @@ class TeamFiles extends React.Component {
       params: {         // 群组列表参数 
         currentPage: 1,
         pageSize: 1000,
+        status: 0,
       },
       currentPacketId: undefined, //当前群组ID
       paramsforFiles: {
         type: FILE_TYPE.ALL,
         page: 0,
         pageSize: 10,
+        options: {
+          status: [0, 1, 2],
+        }
       },
       packetFiles: {},  //群组文件列表 
       // 搜索接口参数
@@ -46,6 +52,7 @@ class TeamFiles extends React.Component {
       paramsforSearch: { // 筛选列表参数
         page: 0,
         pageSize: 10,
+        type: FILE_TYPE.FILE,
       },
       searchFiles: {},  //搜索文件的值
       loading: false,
@@ -111,7 +118,7 @@ class TeamFiles extends React.Component {
       return;
     }
     // 请求getPacket
-    let paramsforFiles = Object.assign({}, this.state.paramsforFiles, { did: fileId });
+    let paramsforFiles = Object.assign({}, this.state.paramsforFiles, { did: fileId, page: 0 });
     // 取路径
     let navigateObj = localStorage.getItem('navigateInfo') && JSON.parse(localStorage.getItem('navigateInfo')) || {};
     if (JSON.stringify(navigateObj) == "{}") {
@@ -169,12 +176,15 @@ class TeamFiles extends React.Component {
 
   deleteFile = async (file) => {
     let params = {
-      deleteVersionIds: [],
+      // deleteVersionIds: [],
       fidArr: typeof file == 'object' ? file : [file],
     }
     let res = await NetHandler.deleteByIds({ ...params });
     if (this.noresult(res)) return;
     message.success('删除成功');
+    this.setState({
+      selectedRowKeys: []
+    })
     // 请求文件
     let { searchStatus } = this.state;
 
@@ -210,6 +220,9 @@ class TeamFiles extends React.Component {
         if (res && res.code == RESULT_STATUS.SUCCESS && res.success) {
           window.location = res.data;
           message.success('下载成功');
+          this.setState({
+            selectedRowKeys: []
+          })
         }
       }
     })
@@ -255,7 +268,7 @@ class TeamFiles extends React.Component {
   handleSubmit = values => {
     let { currentPacketId } = this.state;
     let { status, createTime, queryString } = values;
-    queryString = queryString ? queryString.trim() : "";
+    queryString = queryString ? Trim(queryString) : "";
     status = status || status == 0 ? [status] : [0, 1, 2];
 
     let startTime = null,
@@ -269,14 +282,19 @@ class TeamFiles extends React.Component {
         endTime = endTime.split(" ")[0];
     }
 
+    if (!currentPacketId) {
+      message.error('请先选择所属群组');
+      return;
+    }
+
     if (queryString == "" && startTime == null && endTime == null && !status) {
       message.error('请选择筛选条件');
       return;
     }
 
     let options = Object.assign({}, this.state.options, { status, startTime, endTime });
-    let paramsforSearch = Object.assign({}, this.state.paramsforSearch, { queryString, parentId: currentPacketId });
-    this.setState({ options, paramsforSearch, searchStatus: true, loading: true, pathList: [], canReset: true }, () => {
+    let paramsforSearch = Object.assign({}, this.state.paramsforSearch, { queryString, parentId: currentPacketId, page: 0 });
+    this.setState({ options, paramsforSearch, searchStatus: true, loading: true, pathList: [], canReset: true, selectedRowKeys: [] }, () => {
       localStorage.removeItem('navigateInfo');
       this.querySearchFiles();
     })
@@ -284,7 +302,13 @@ class TeamFiles extends React.Component {
 
   handleReset = () => {
     // 一切归零
-    let { paramsforSearch, options, paramsforFiles } = this.state;
+    let { paramsforSearch, options, paramsforFiles, currentPacketId } = this.state;
+    
+    if (!currentPacketId) {
+      message.error('请先选择所属群组');
+      return;
+    }
+    
     paramsforFiles = Object.assign({}, this.state.paramsforFiles, { page: 0 });
     this.setState({
       paramsforSearch: { page: 0, pageSize: 10 },
@@ -333,10 +357,25 @@ class TeamFiles extends React.Component {
       loading: true,
       paramsforFiles,
       pLoading: true,
+      selectedRowKeys: []
     }, () => {
       searchStatus && this.querySearchFiles();
       !searchStatus && this.queryPacketFiles();
     });
+  }
+
+  sizeChange = (page, pageSize) => {
+    let paramsforFiles = Object.assign({}, this.state.paramsforFiles, { pageSize, page: 0 });
+    this.setState({ paramsforFiles, pLoading: true }, () => {
+      this.queryPacketFiles();
+    })
+  }
+
+  sizeChangeforSearch = (page, pageSize) => {
+    let paramsforSearch = Object.assign({}, this.state.paramsforSearch, { pageSize });
+    this.setState({ paramsforSearch, loading: true }, () => {
+      this.querySearchFiles();
+    })
   }
 
   openFiles = (fileInfo) => {
@@ -356,6 +395,7 @@ class TeamFiles extends React.Component {
           paramsforFiles,
           pLoading: true,
           searchStatus: false,
+          pathList: newnavigateArray,
         }, () => {
           this.queryPacketFiles();
         })
@@ -364,8 +404,10 @@ class TeamFiles extends React.Component {
         let params = {
           fileId: fileInfo.fileId,
           uuid: generateUuid(8, 62),
-          version: 0,
+          version: -1,
           mobile: false,
+          fileName: fileInfo.fileName,
+          method: 3,
         }
         this.getFilePreviewUrl({ ...params });
         break;
@@ -377,17 +419,8 @@ class TeamFiles extends React.Component {
   }
 
   getFilePreviewUrl = (params) => {
-    const { dispatch } = this.props;
-    dispatch({
-      type: 'file/preview',
-      payload: params,
-      callback: res => {
-        if (res && res.code == RESULT_STATUS.SUCCESS) {
-          let previewUrl = res.data.url;
-          window.open(previewUrl, "_blank");
-        }
-      }
-    })
+    let previewUrl = `/third.html?fileId=${params.fileId}&version=${params.version}&trash=false&method=${params.method}&fileName=${encodeURI(encodeURI(params.fileName))}&uuid=${params.uuid}`;
+    window.open(previewUrl, "_blank");
   }
 
   backtofiles = (fileInfo) => {
@@ -451,17 +484,7 @@ class TeamFiles extends React.Component {
                   {text}
                 </span>
             }
-            {
-              text.length > 10 &&
-              <span className={styles.allwords}>
-                {/* <span
-                  className={styles.fileNameIcon}
-                  style={{ backgroundPositionX: iconPos.x, backgroundPositionY: iconPos.y }}
-                >
-                </span> */}
-                {text}
-              </span>
-            }
+            
           </div>
         )
       }
@@ -498,7 +521,7 @@ class TeamFiles extends React.Component {
       render: size => <span>{unitConversion(size)}</span>
     },
     {
-      title: '分享',
+      title: '共享',
       key: 'share',
       align: 'center',
       width: 50,
@@ -506,7 +529,7 @@ class TeamFiles extends React.Component {
         let fileInfo = YZFile(record);
         return (
           <Popconfirm
-            title="确定关闭分享吗？"
+            title="确定关闭共享吗？"
             okText="确定"
             cancelText="取消"
             onConfirm={() => this.closeShare(record)}
@@ -546,16 +569,16 @@ class TeamFiles extends React.Component {
       render: (_, record) => {
         return <>
           <Popconfirm
-            title="确定删除文件吗？"
+            title="文件被删除后不可恢复"
             okText="确定"
             cancelText="取消"
             onConfirm={() => this.deleteFile(record.fileId)}
-            disabled={record.status == '1'}
+            disabled={record.status == '2'}
             onCancel={() => null}
           >
-            <Button type="link" danger disabled={record.status == '1'}>删除</Button>
+            <Button type="link" danger disabled={record.status == '2'}>删除</Button>
           </Popconfirm>
-          <Button onClick={() => this.downloadFile(record.fileId)} type="link" disabled={record.state == 'delete'}>下载</Button>
+          <Button onClick={() => this.downloadFile(record.fileId)} type="link" disabled={record.status == '2'}>下载</Button>
         </>
       }
     }
@@ -567,7 +590,7 @@ class TeamFiles extends React.Component {
       selectedRowKeys,
       onChange: this.onSelectChange,
       getCheckboxProps: record => ({
-        disabled: record.status === '1', // Column configuration not to be checked
+        disabled: record.status == '2', // Column configuration not to be checked
         name: record.status,
       }),
     };
@@ -581,12 +604,12 @@ class TeamFiles extends React.Component {
     let packets = packetsResult && packetsResult.list || [];
 
     // 文件列表
-    packetFiles = packetFiles && packetFiles.resultSet && packetFiles.resultSet.fileInfos || [];
-    packetFiles = sortByTime(packetFiles);
+    let filesList = packetFiles && packetFiles.resultSet && packetFiles.resultSet.fileInfos || [];
+    filesList = sortByTimeAndType(filesList);
 
     // 筛选文件列表
     let searchArr = searchFiles && searchFiles.fileArr || [];
-    searchArr = sortByTime(searchArr);
+    searchArr = sortByTimeAndType(searchArr);
 
     return (
       <PageHeaderWrapper title={false}>
@@ -622,15 +645,16 @@ class TeamFiles extends React.Component {
           <>
             <Table
               columns={this.columns}
-              dataSource={packetFiles}
+              dataSource={filesList}
               scroll={{ x: 1400 }}
               rowSelection={rowSelection}
               loading={pLoading}
               pagination={{
                 current: paramsforFiles.page + 1,
-                total: packetFiles && Number(packetFiles.pages) * 10,
-                pageSize: 10,
-                onChange: this.handlePageChange
+                total: packetFiles && Number(packetFiles.pages) * paramsforFiles.pageSize,
+                onChange: this.handlePageChange,
+                showSizeChanger: true,
+                onShowSizeChange: this.sizeChange,
               }}
               rowKey="fileId"
             />
@@ -641,6 +665,7 @@ class TeamFiles extends React.Component {
                 cancelText="取消"
                 onConfirm={() => this.deleteFile(selectedRowKeys)}
                 onCancel={() => null}
+                disabled={!hasChoose} 
               >
                 <Button type="primary" disabled={!hasChoose} danger>删除</Button>
               </Popconfirm>
@@ -660,8 +685,9 @@ class TeamFiles extends React.Component {
               pagination={{
                 current: Number(paramsforSearch.page) + 1,
                 total: searchFiles && Number(searchFiles.totalNumber),
-                pageSize: 10,
-                onChange: this.handlePageChange
+                onChange: this.handlePageChange,
+                showSizeChanger: true,
+                onShowSizeChange: this.sizeChangeforSearch,
               }}
               rowKey="fileId"
             />
@@ -672,10 +698,11 @@ class TeamFiles extends React.Component {
                 cancelText="取消"
                 onConfirm={() => this.deleteFile(selectedRowKeys)}
                 onCancel={() => null}
+                disabled={!hasChoose}
               >
                 <Button type="primary" disabled={!hasChoose} danger>删除</Button>
               </Popconfirm>
-              <Button type="primary" disabled={!hasChoose} style={{ marginLeft: '10px' }}>下载</Button>
+              <Button type="primary" disabled={!hasChoose} style={{ marginLeft: '10px' }} onClick={() => this.downloadFile(selectedRowKeys)}>下载</Button>
             </div>
           </>
         }

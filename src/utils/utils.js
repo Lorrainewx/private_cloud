@@ -188,24 +188,24 @@ export const generateUuid = (len, radix) => {
   radix = radix || chars.length;
 
   if (len) {
-      // Compact form
-      for (i = 0; i < len; i++) uuid[i] = chars[0 | Math.random() * radix];
+    // Compact form
+    for (i = 0; i < len; i++) uuid[i] = chars[0 | Math.random() * radix];
   } else {
-      // rfc4122, version 4 form
-      var r;
+    // rfc4122, version 4 form
+    var r;
 
-      // rfc4122 requires these characters
-      uuid[8] = uuid[13] = uuid[18] = uuid[23] = '-';
-      uuid[14] = '4';
+    // rfc4122 requires these characters
+    uuid[8] = uuid[13] = uuid[18] = uuid[23] = '-';
+    uuid[14] = '4';
 
-      // Fill in random data.  At i==19 set the high bits of clock sequence as
-      // per rfc4122, sec. 4.1.5
-      for (i = 0; i < 36; i++) {
-          if (!uuid[i]) {
-              r = 0 | Math.random() * 16;
-              uuid[i] = chars[(i == 19) ? (r & 0x3) | 0x8 : r];
-          }
+    // Fill in random data.  At i==19 set the high bits of clock sequence as
+    // per rfc4122, sec. 4.1.5
+    for (i = 0; i < 36; i++) {
+      if (!uuid[i]) {
+        r = 0 | Math.random() * 16;
+        uuid[i] = chars[(i == 19) ? (r & 0x3) | 0x8 : r];
       }
+    }
   }
 
   return uuid.join('');
@@ -213,10 +213,24 @@ export const generateUuid = (len, radix) => {
 
 export const attributeCount = (obj) => {
   let count = 0;
-  for(let i in obj) {
-    if(obj.hasOwnProperty(i)) {  // 建议加上判断,如果没有扩展对象属性可以不加
-        count++;
+  for (let i in obj) {
+    if (obj.hasOwnProperty(i)) {  // 建议加上判断,如果没有扩展对象属性可以不加
+      count++;
     }
   }
   return count;
 }
+
+export const isInteger = (obj) => {
+  return obj % 1 === 0;
+}
+
+export const Trim = (str, is_global = 'g') => {
+  var result;
+  result = str.replace(/(^\s+)|(\s+$)/g, "");
+  if (is_global.toLowerCase() == "g") {
+    result = result.replace(/\s/g, "");
+  }
+  return result;
+}
+

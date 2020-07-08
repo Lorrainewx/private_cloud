@@ -21,7 +21,7 @@ import department from '@/assets/department.png';
 import team from '@/assets/team.png';
 import share from '@/assets/share.png';
 
-const { auth, yocloud, sourceUrl, devAuth } = defaultSettings;
+const { devAuth } = defaultSettings;
 
 @connect(({ global, enterprise, packet, loading }) => ({
   global,
@@ -49,23 +49,23 @@ class Dashboard extends React.Component {
   }
 
   async componentDidMount() {
-    await this.getCurrentEnterpriseInfo();  // 企业空间配置
+    // await this.getCurrentEnterpriseInfo();  // 企业空间配置
     await this.queryDepartments();  // 部门组织架构
-    this.getPacketSpaceUsed();  // 群组空间用量 
+    // this.getPacketSpaceUsed();  // 群组空间用量 
     this.getPacketTotal();
-
+    this.getepDmFileCount();  //部门文档数量统计
     await this.getDocumentInfo(); //获取文档数
   }
 
-  getCurrentEnterpriseInfo = async () => {  // 当前企业信息
-    let currentEpInfoResult = await NetHandler.getCurrentEnterpriseInfo();
-    if (this.noresult(currentEpInfoResult)) return;
-    const { enterprise } = currentEpInfoResult;
-    const { upgradeCapacity, basicCapacity, usedSpace } = enterprise;
-    this.setState({
-      totalSpace: { total: upgradeCapacity + basicCapacity, name: '总空间', used: usedSpace },
-    });
-  }
+  // getCurrentEnterpriseInfo = async () => {  // 当前企业信息
+  //   let currentEpInfoResult = await NetHandler.getCurrentEnterpriseInfo();
+  //   if (this.noresult(currentEpInfoResult)) return;
+  //   const { enterprise } = currentEpInfoResult;
+  //   const { upgradeCapacity, basicCapacity, usedSpace } = enterprise;
+  //   this.setState({
+  //     totalSpace: { total: upgradeCapacity + basicCapacity, name: '总空间', used: usedSpace },
+  //   });
+  // }
 
   queryDepartments = () => { // 组织架构
     const { dispatch } = this.props;
@@ -79,6 +79,13 @@ class Dashboard extends React.Component {
           this.statisticMembers(parentId);
         }
       }
+    })
+  }
+
+  getepDmFileCount = () => {
+    const { dispatch } = this.props;
+    dispatch({
+      type: 'enterprise/getepDmFileCount',      
     })
   }
 
@@ -96,24 +103,25 @@ class Dashboard extends React.Component {
     let departmentLarge = await NetHandler.getDepartmentDetailInfo({ departmentId }); // 部门信息（公司最大部门）
     if (this.noresult(departmentLarge)) return;
 
-    const { curDepartment: { spaceLimit, usedSpace, memberCount, epSpaceLimit }, } = departmentLarge;
+    // const { curDepartment: { spaceLimit, usedSpace, memberCount, epSpaceLimit }, } = departmentLarge;
+    const { curDepartment: { memberCount }, } = departmentLarge;
     this.setState({
-      departmentSpace: { name: '部门文档空间', used: usedSpace, total: epSpaceLimit },
+      // departmentSpace: { name: '部门文档空间', used: usedSpace, total: epSpaceLimit },
       totalMembersCount: memberCount,
     });
   }
 
-  getPacketSpaceUsed = () => {
-    const { dispatch } = this.props;
-    dispatch({
-      type: 'packet/fetchSpaceUsed',
-      callback: res => {
-        if (res && res.code === RESULT_STATUS.SUCCESS) {
-          this.setState({ teamSpace: { name: '群组文档空间', total: undefined, used: res.data } });
-        }
-      }
-    })
-  }
+  // getPacketSpaceUsed = () => {
+  //   const { dispatch } = this.props;
+  //   dispatch({
+  //     type: 'packet/fetchSpaceUsed',
+  //     callback: res => {
+  //       if (res && res.code === RESULT_STATUS.SUCCESS) {
+  //         this.setState({ teamSpace: { name: '群组文档空间', total: undefined, used: res.data } });
+  //       }
+  //     }
+  //   })
+  // }
 
   getPacketTotal = () => {
     const { dispatch } = this.props;
@@ -144,13 +152,13 @@ class Dashboard extends React.Component {
   render() {
     const {
       filesData,
-      totalSpace,
-      departmentSpace,
-      teamSpace,
+      // totalSpace,
+      // departmentSpace,
+      // teamSpace,
       departmentsLarge,
     } = this.state;
 
-    const {
+    let {
       currentUser = {
         avatar: '',
         name: '',
@@ -159,6 +167,7 @@ class Dashboard extends React.Component {
       packet: { spaceResult, packetTotal },
       membersNumResult,
       pieLoading,
+      enterprise: { epDepartmentFileCount }
     } = this.props;
 
     let membersNum = membersNumResult && membersNumResult.data;
@@ -167,13 +176,12 @@ class Dashboard extends React.Component {
 
     let workType = {};
     departmentsList.map(item => workType[item.name] = Number(item.count));
-
+    epDepartmentFileCount = epDepartmentFileCount && epDepartmentFileCount.data || [];
     let filesInfo = {};
-    filesData.map(item => filesInfo[item.name] = Number(item.total));
-
+    epDepartmentFileCount.map(item => filesInfo[item.name] = Number(item.fileCount));
+    
     const { epInfo } = global;
     const { epInfo: { data: epData } } = global;
-    
     return (
       <div className={styles.grid}>
         <Row>
@@ -182,7 +190,8 @@ class Dashboard extends React.Component {
               <div className={`${styles.top} ${styles.module}`}>
                 <div className={styles.logo}>
                   <img src={devAuth + epInfo && epInfo.logo} style={{ height: '80px' }} />
-                  <span>{epData && epData.name}</span>
+                  <span className={styles.swords}>{epData && epData.abbrev}</span>
+                  <span className={styles.awords}>{epData && epData.abbrev}</span>
                 </div>
                 <h4 className={styles.title}>企业信息</h4>
                 <div className={styles.info}>
@@ -193,53 +202,62 @@ class Dashboard extends React.Component {
                       <span className={styles.allName}>{epData && epData.name}</span>
                     </li>
                     <li>
-                      <span className={styles.label}>企业ID</span>
-                      <span className={styles.wrapper}>{epData && epData.udid}</span>
-                    </li>
-                    <li>
                       <span className={styles.label}>企业简称</span>
                       <span className={`${styles.wrapper} ${styles.name}`}>{epData && epData.abbrev}</span>
                       <span className={styles.allName}>{epData && epData.abbrev}</span>
                     </li>
+                    {/* <li>
+                      <span className={styles.label}>企业ID</span>
+                      <span className={styles.wrapper}>{epData && epData.udid}</span>
+                    </li> */}
                     <li>
                       <span className={styles.label}>有效期</span>
-                      <span className={styles.wrapper}>{epData && timestampToTime(epData.expireTime)}</span>
+                      <span className={styles.wrapper}>{epData && epData.expireTime && timestampToTime(epData.expireTime) || '永久'}</span>
                     </li>
                   </ul>
                 </div>
               </div>
               <div className={`${styles.bottom} ${styles.module}`}>
-                <h4 className={styles.title}>空间数据</h4>
+                {/* <h4 className={styles.title}>空间数据</h4>
                 <div className={styles.info}>
-                  <ul className={styles.list}>
-                    {/* 总空间 */}
-                    <li key={0}>
+                  <ul className={styles.list}> */}
+                {/* 总空间 */}
+                {/* <li key={0}>
                       <span>{totalSpace.name}</span>
                       <Progress percent={(totalSpace.used / totalSpace.total).toFixed(4) * 100} />
                       <span className={styles.spaceInfo}>
                         <span>已使用 {unitConversion(totalSpace.used)}</span>
                         <span>总量 {unitConversion(totalSpace.total)}</span>
                       </span>
-                    </li>
-                    {/* 部门文档 */}
-                    <li key={1}>
-                      <span>{departmentSpace.name}</span>
-                      {/* <Progress percent={(departmentSpace.used / departmentSpace.total).toFixed(4) * 100} /> */}
-                      <span className={styles.spaceInfo}>
-                        <span>已使用 {unitConversion(departmentSpace.used)}</span>
-                        {/* <span>总量 {unitConversion(departmentSpace.total)}</span> */}
-                      </span>
-                    </li>
-                    {/* 群组文档 */}
-                    <li key={2}>
-                      <span>{teamSpace.name}</span>
-                      {/* <Progress percent={(teamSpace.used / teamSpace.total).toFixed(4) * 100} /> */}
-                      <span className={styles.spaceInfo}>
-                        <span>已使用 {unitConversion(teamSpace.used)}</span>
-                        {/* <span>总量 {unitConversion(teamSpace.total)}</span> */}
-                      </span>
+                    </li> */}
+                {/* 部门文档 */}
+                {/* <li key={1}>
+                      <span>{departmentSpace.name}</span> */}
+                {/* <Progress percent={(departmentSpace.used / departmentSpace.total).toFixed(4) * 100} /> */}
+                {/* <span className={styles.spaceInfo}>
+                        <span>已使用 {unitConversion(departmentSpace.used)}</span> */}
+                {/* <span>总量 {unitConversion(departmentSpace.total)}</span> */}
+                {/* </span>
+                    </li> */}
+                {/* 群组文档 */}
+                {/* <li key={2}>
+                      <span>{teamSpace.name}</span> */}
+                {/* <Progress percent={(teamSpace.used / teamSpace.total).toFixed(4) * 100} /> */}
+                {/* <span className={styles.spaceInfo}>
+                        <span>已使用 {unitConversion(teamSpace.used)}</span> */}
+                {/* <span>总量 {unitConversion(teamSpace.total)}</span> */}
+                {/* </span>
                     </li>
                   </ul>
+                </div> */}
+
+                <h4 className={styles.title}>其他数据</h4>
+                <div className={styles.info} style={{ margin: '50px 0 37px' }}>
+                  <div className={styles.item}>
+                    <span className={styles.icon}><img src={teamIcon} /></span>
+                    <span className={styles.desp}>群组数量：</span>
+                    <span className={styles.num}>{packetTotal && packetTotal.data}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -282,15 +300,16 @@ class Dashboard extends React.Component {
                         <Bar
                           data={filesInfo}
                           theme={'light'}
-                          start={attributeCount(filesInfo) < 8 ? 0 : 54}
+                          start={attributeCount(filesInfo) < 20 ? 0 : 54}
                           height={300}
+                          padding={JSON.stringify(filesInfo) == '{}' ? 70 : 30}
                         />
                       </Spin>
                     </Col>
                   </Row>
                 </div>
               </div>
-              <div className={`${styles.bottom} ${styles.module}`}>
+              {/* <div className={`${styles.bottom} ${styles.module}`}>
                 <h4 className={styles.title}>其他数据</h4>
                 <div className={styles.info}>
                   <div className={styles.item}>
@@ -299,7 +318,7 @@ class Dashboard extends React.Component {
                     <span className={styles.num}>{packetTotal && packetTotal.data}</span>
                   </div>
                 </div>
-              </div>
+              </div> */}
             </div>
           </Col>
         </Row>

@@ -6,8 +6,9 @@ import SearchTree from '@/components/SearchTree';
 import SearchTreewithMembers from '@/components/SearchTreewithMembers';
 import SerachFormManage from './searchForm';
 import { connect } from 'dva';
-import { omit } from 'lodash';
+import { omit, uniqBy } from 'lodash';
 import { formatterForMembers } from '@/utils/cloud';
+import { Trim } from '@/utils/utils';
 import styles from './index.less';
 import { RESULT_STATUS } from '@/const/STATUS';
 
@@ -16,6 +17,7 @@ const { Option } = Select;
 @connect(({ account, enterprise, corpAccount }) => ({
   account,
   adminMembersList: account.adminMembersList,
+  enterprise,
   adminRoles: enterprise.adminRoles,
   departments: enterprise.departments,
   deleteResult: account.deleteResult,
@@ -25,19 +27,20 @@ class AdminManage extends React.Component {
   state = {
     adminVisible: false,
     defaultExpandedKeys: [],  // 默认展开树
-    addmemberList: [],  // 成岩信息列表
     addMembersListForId: [],  // 成员ID数组
     currentRole: undefined,  // 当前所选角色
     params: {
       size: 1000,
       page: 1,
-    }
+    },
+    selectUsers: [],
   }
 
   componentDidMount() {
     this.queryAdminRoles(); //企业管理员角色 
     this.queryAdminList();  // 管理员列表
     this.queryDepartments();  // 查询部门带成员结构的
+    this.queryDpMemberList({ department: true }); // 分组成员
   }
 
   queryAdminList = () => {
@@ -126,7 +129,7 @@ class AdminManage extends React.Component {
         if (res && res.code === RESULT_STATUS.SUCCESS) {
           message.success('添加成功');
           this.queryAdminList();
-          this.setState({ currentRole: undefined, addmemberList: [], addMembersListForId: [] });  //一切归零
+          this.setState({ currentRole: undefined, selectUsers: [], addMembersListForId: [] });  //一切归零
         }
       }
     })
@@ -134,6 +137,9 @@ class AdminManage extends React.Component {
 
   closeModal = type => {
     this.setState({ [type]: false });
+    if (type == 'adminVisible') {
+      this.setState({ selectUsers: [], addMembersListForId: [] })
+    }
   }
 
   isMember = (value) => { // 过滤非成员账号
@@ -141,15 +147,68 @@ class AdminManage extends React.Component {
     return result;
   }
 
-  checkMembers = (checkedKeys, info) => {
-    const checkedMidKeys = checkedKeys.filter(item => this.isMember(item));
-    this.setState({ addMembersListForId: checkedMidKeys }, () => {
-      this.queryMemberInfoList(checkedMidKeys);
-    });
+  // 转换为纯ID 无标识的
+  translateToId = arr => {
+    let newArr = [];
+    for (let i of arr) {
+      let mid = i.split('member')[1];
+      newArr.push(mid);
+    }
+    return newArr;
   }
 
-  selectMembers = (selectedKeys, info) => {
-    console.log('selected', selectedKeys, info);
+  checkMembers = (checkedKeys, info) => {
+    this.setState({ addMembersListForId: checkedKeys });
+
+    let {
+      enterprise: { dpMembers },
+    } = this.props;
+    dpMembers = dpMembers && dpMembers.data || [];
+    
+    let checkedMidKeys = checkedKeys.filter(item => this.isMember(item));
+    checkedMidKeys = this.translateToId(checkedMidKeys);
+    // 取消选中
+    if (checkedMidKeys.length == 0) {
+      this.setState({ selectUsers: [] });
+      return;
+    }
+
+    this.findSelectedKeysUserInfo(dpMembers, checkedMidKeys);
+  }
+
+
+  // 查找已选择的已分组用户信息
+  findSelectedKeysUserInfo = (data, checkedKeys) => {
+
+    // 选中
+    let { selectUsers } = this.state;
+    let membersArr = [];
+    for (let item of data) {
+      let members = item.members ? item.members : [];
+      if (members.length == 0) {
+        if (item.children && item.children.length > 0) {
+          this.findSelectedKeysUserInfo(item.children, checkedKeys);
+          // return;
+        }
+        // return;
+      }
+      let nselectUsers = members.filter(v => checkedKeys.includes(v.id));
+      if (nselectUsers.length > 0) { 
+        membersArr = membersArr.concat(nselectUsers);
+        membersArr = membersArr.filter(v => checkedKeys.includes(v.id));
+        selectUsers = selectUsers.filter(v => checkedKeys.includes(v.id));
+        let newSelectUsers = selectUsers.concat(membersArr);
+        this.setState({ selectUsers: uniqBy(newSelectUsers, 'id') }, () => {
+          if (item.children && item.children.length > 0) {
+            this.findSelectedKeysUserInfo(item.children, checkedKeys);
+          }
+        });
+      } else {
+        if (item.children && item.children.length > 0) {
+          this.findSelectedKeysUserInfo(item.children, checkedKeys);
+        }
+      }      
+    }
   }
 
   handleScreen = roleId => {
@@ -160,7 +219,7 @@ class AdminManage extends React.Component {
   }
 
   handleSearch = name => {
-    let params = Object.assign({}, this.state.params, { name: name.trim() });
+    let params = Object.assign({}, this.state.params, { name: Trim(name) });
     this.setState({ params }, () => {
       this.queryAdminList();
     })
@@ -175,28 +234,14 @@ class AdminManage extends React.Component {
   }
 
   cancelChoose = (user) => {
-    let { addmemberList, addMembersListForId } = this.state;
-    let newList = addmemberList.filter(item => item.id != user.id);
+    let { selectUsers, addMembersListForId } = this.state;
+    let newList = selectUsers.filter(item => item.id != user.id);
     addMembersListForId = addMembersListForId.filter(item => item != `member${user.id}` && this.isMember(item));
 
     this.setState({
-      addmemberList: newList,
+      selectUsers: newList,
       addMembersListForId,
     });
-  }
-
-  queryMemberInfoList = (checkedMids) => {
-    let addmemberList = [];
-    if (checkedMids.length == 0) {
-      this.setState({ addmemberList: [] });
-    }
-    for (let item of checkedMids) {
-      let mid = item.split('member')[1];
-      this.queryMemberInfoItem(mid, (res) => {
-        addmemberList.push(res.data);
-        this.setState({ addmemberList });
-      })
-    }
   }
 
   queryMemberInfoItem = (mid, cb) => {  // 成员信息
@@ -249,21 +294,30 @@ class AdminManage extends React.Component {
       render: (_, record) => {
         return (
           <Popconfirm
-            title="您确定要删除该管理员吗？"
+            title={() => <span>请确定删除{record.name}的{record.adminRole.name}权限， <br /> 删除后该成员将不会有该角色权限</span>}
             okText="确定"
             cancelText="取消"
             onConfirm={() => this.deleteAdmin(record)}
             onCancel={() => null}
-          >
-            <Button type="link" danger >删除</Button>
+            disabled={record.isCreator}
+          >            
+            <Button type="link" danger disabled={record.isCreator}>删除</Button>
           </Popconfirm>
         )
       }
     }
   ]
 
+  queryDpMemberList = (params) => {
+    const { dispatch } = this.props;
+    dispatch({
+      type: 'enterprise/fetchDepartmentsMemberList',
+      payload: { ...params },
+    })
+  }
+
   render() {
-    const { adminVisible, defaultExpandedKeys, addMembersListForId, addmemberList, currentRole } = this.state;
+    const { adminVisible, defaultExpandedKeys, addMembersListForId, currentRole, selectUsers } = this.state;
     let {
       adminMembersList,
       adminRoles,
@@ -336,8 +390,7 @@ class AdminManage extends React.Component {
             checkable={true}
             checkedKeys={addMembersListForId}
             onCheck={this.checkMembers}
-            onSelect={this.selectMembers}
-            dataSource={addmemberList}
+            dataSource={selectUsers}
             deletemem={this.cancelChoose}
           />
         </Modal>
